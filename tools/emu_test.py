@@ -6,7 +6,7 @@
 Plays a scripted test on the firmware in Joakim Eriksson's FM-1 emulator (fm1-live, headless) and writes the sound as a WAV and the
 last screen as a PNG, so a change can be heard and measured before it goes onto an FM-1.
 
-  python3 tools/emu_test.py [--fwsc build/b3organ.fwsc] [--out build/emu] SCENARIO [--strict]
+  python3 tools/emu_test.py [--fwsc build/b3drum.fwsc] [--out build/emu] SCENARIO [--strict]
 
   chord    seven notes one after the other (F4 A4 C5 E5 F5 A5 C6), four drawbars out, chorus C3, Leslie stop, overdrive off, expression 100 %
   chordod  the same with the overdrive on
@@ -122,7 +122,7 @@ def ppm_to_png(src, dst):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("scenario")
-    ap.add_argument("--fwsc", default="build/b3organ.fwsc")
+    ap.add_argument("--fwsc", default="build/b3drum.fwsc")
     ap.add_argument("--out", default="build/emu")
     ap.add_argument("--strict", action="store_true")
     a = ap.parse_args()

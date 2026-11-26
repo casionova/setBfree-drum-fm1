@@ -104,8 +104,18 @@ jobs:
           ./build.sh --board smk37
           ./build.sh --board smk37 --model elite
           ./build.sh --board smk37 --model mke
-          ./build.sh                 # the FM-1 last: build/dinghy.bin is its app
+          ./build.sh | tee build/fm1-build.log   # the FM-1 last: build/dinghy.bin is its app
           ls -l build/*.fwsc
+        shell: bash
+      - name: Code space and RAM (B3+DRUM's baseline for the drums)
+        run: |
+          {
+            echo "### FM-1 image, RAM and pool"
+            echo '```'
+            grep -E "image [0-9]+ B of|^app |^package " build/fm1-build.log || echo "(no size line found in the build log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E "image [0-9]+ B of" build/fm1-build.log || true
         shell: bash
       - name: "Is the FM-1 app byte for byte main's? (a warning if not; a branch that only touches the SMK-37 must not change it)"
         if: github.ref != 'refs/heads/main'
@@ -162,7 +172,7 @@ jobs:
           (cd /tmp/emu && cargo build --release -p fm1-emu)
       - name: Run it
         run: |
-          PKG=$(ls build/b3organ-smk37*.fwsc | head -1)
+          PKG=$(ls build/b3drum-smk37*.fwsc | head -1)
           SCRIPT=$(grep -v '^#' tools/emu/smk37.script | tr -d ' \n')
           mkdir -p /tmp/emu/work && cd /tmp/emu
           FM1_SCRIPT="$SCRIPT" ./target/release/fm1-emu --fwsc "$GITHUB_WORKSPACE/$PKG" --ms 5200 --snap 2600,3500,5100 --quiet | tail -20

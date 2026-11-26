@@ -79,8 +79,8 @@ def logo():
     for y in range(top - 40 * S, W):                     # the bars fade into the dark under the wordmark
         a = min(255, max(0, (y - (top - 40 * S)) * 255 // (40 * S)))
         d.line([0, y, W, y], fill=BG + (a,))
-    d.text((W // 2, 196 * S), "B3 ORGAN", font=font(BOLD, 46 * S), fill=(240, 234, 220), anchor="mm")
-    d.text((W // 2, 226 * S), "after setBfree  ·  for the FM-1", font=font(MEDIUM, 11 * S), fill=(224, 137, 58), anchor="mm")
+    d.text((W // 2, 196 * S), "B3+DRUM", font=font(BOLD, 46 * S), fill=(240, 234, 220), anchor="mm")
+    d.text((W // 2, 226 * S), "B3 ORGAN + rhythm  ·  for the FM-1", font=font(MEDIUM, 11 * S), fill=(224, 137, 58), anchor="mm")
     return img.resize((240, 240), Image.LANCZOS)
 
 

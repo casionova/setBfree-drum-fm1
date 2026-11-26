@@ -110,7 +110,7 @@ static volatile uint32_t fm1_ms;                /* milliseconds since power-on (
 #define DATA_AT 0x0009E000u
 #define OWNER_AT 0x000AF000u
 #ifndef DATA_FAMILY
-#define DATA_FAMILY "B3ORGAN"                   /* the owner tag's family: 1..7 of A-Z 0-9 (tools/build.py) */
+#define DATA_FAMILY "B3DRUM"                    /* the owner tag's family: 1..7 of A-Z 0-9 (tools/build.py) */
 #endif
 #define FL_RANGE_OK(off, n) (FL_IN(off, n, FL_OTA_LO, FL_OTA_HI) || FL_IN(off, n, SETTINGS_AT, SETTINGS_AT + 0x2000u) || \
                              FL_IN(off, n, OWNER_AT, OWNER_AT + 0x1000u))

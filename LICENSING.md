@@ -10,6 +10,8 @@ complete source under the same licence too.
 | --- | --- |
 | The platform: `firmware/hal/`, `firmware/loader/`, `crt0.S`, `app.ld`, `firmware/src/` (`usb.c`, `ota.c`, `recovery.c`, `lcd.c`, `gfx.c`, `libc.c`, `bootguard.h`, `uac_fir.h`), `tools/` | Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments ([Felucca](https://github.com/hugelton/Felucca)), with the changes of [SLOOP](https://github.com/isod89/sloop-fm1) (isod89) |
 | The app `firmware/src/dinghy.c`, the wiring `platform.c`, the host mode `tests/`, the docs | zvenson |
+| B3 ORGAN: the organ engine (`firmware/src/organ_*.h`), its app in `dinghy.c`, the tools and tests that go with it | R-Jeb ([setBfree-fm1](https://github.com/R-Jeb/setBfree-fm1)) |
+| B3+DRUM: the fork and the rhythm section (from the Cheesebox 931) | Skipper |
 
 ## Third-party material
 

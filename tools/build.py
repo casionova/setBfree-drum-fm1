@@ -6,7 +6,7 @@
   tools/build.py [--release X.Y[-suffix]] [--board fm1|smk37] [--model pro|elite|mke]
 
 Outputs in build/: dinghy.bin (app), loader/ota.bin (update loader),
-b3organ.fwsc (package). See README.md for the toolchain and the SDK.
+b3drum.fwsc (package). See README.md for the toolchain and the SDK.
 
 The JieLi toolchain is Linux x86-64 only. JIELI_TOOLCHAIN points at it; on
 macOS (or with JIELI_DOCKER=1) each tool runs in a linux/amd64 container.
@@ -51,10 +51,10 @@ BOARD = "fm1"                       # fm1 (default) or smk37: --board or $BOARD
 BOARD_DEFS = {"fm1": [], "smk37": ["-DBOARD_SMK37=1"]}
 MODELS = {"pro": "SMK-37 Pro", "elite": "SMK-37 Elite", "mke": "MKE-P37"}   # smk37: one keyboard, three names (M-Vave's updater
                                     # only takes a unit's own factory package: each name its own package)
-DATA_FAMILY = "B3ORGAN"             # the SMK store's owner tag (platform.c smk_owner_check): 1..7 of A-Z 0-9
-IDENT = "FM-1_953"                  # B3 organ: one identity for every version (the installer's OUR_LOADER wants FM-1_9NN; the hub takes the
+DATA_FAMILY = "B3DRUM"              # the SMK store's owner tag (platform.c smk_owner_check): 1..7 of A-Z 0-9
+IDENT = "FM-1_961"                  # B3+drum (fork of B3 ORGAN, FM-1_953; 961 to be confirmed free with the hub before a release): one identity for every version (the installer's OUR_LOADER wants FM-1_9NN; the hub takes the
                                     # name and the version from the repository and its releases, and it must be one no other firmware uses)
-PACKAGE = "b3organ"                 # the package file: build/b3organ.fwsc, build/b3organ-0.1.fwsc
+PACKAGE = "b3drum"                  # the package file: build/b3drum.fwsc, build/b3drum-0.1.fwsc
 PRODUCT = IDENT                     # the identity the package and the running firmware report
 VERSION = None                      # APP_VER: the release's X.Y, else "d" + the commit (see git_version)
 
@@ -320,7 +320,7 @@ def main():
     fm1pkg_make.set_board(BOARD)
     APP_SLOT = fm1pkg_make.APP_SLOT
     suffix = ""
-    if BOARD == "smk37":            # SMK-37 Pro_953, SMK-37 Elite_953, MKE-P37_953: the same B3 number on the keyboard's name
+    if BOARD == "smk37":            # SMK-37 Pro_961, SMK-37 Elite_961, MKE-P37_961: the same number on the keyboard's name
         PRODUCT = MODELS[model] + IDENT[IDENT.index("_"):]
         suffix = "-smk37" + ("" if model == "pro" else "-" + model)
         if model != "pro":

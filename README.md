@@ -1,3 +1,12 @@
+# B3+DRUM for the M-VAVE FM-1
+
+> **A fork of [R-Jeb's B3 ORGAN](https://github.com/R-Jeb/setBfree-fm1) (setBfree-fm1, GPL-3.0).** The organ is R-Jeb's, unchanged so
+> far. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): four synthesised kits (CT-403, Mini Pops 7, TR-606,
+> CR-78), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and MIDI clock. Work in progress: no drums yet.
+> Package `b3drum.fwsc`, identity `FM-1_961`. Organ bugs that also happen on B3 ORGAN belong upstream; everything else here.
+
+The rest of this README is B3 ORGAN's own.
+
 # B3 ORGAN for the M-VAVE FM-1
 
 **A Hammond B3 tonewheel organ for the M-VAVE FM-1, modelled on [setBfree](https://github.com/pantherb/setBfree).**

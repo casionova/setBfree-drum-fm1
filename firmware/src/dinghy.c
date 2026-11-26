@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* B3 ORGAN for the M-VAVE FM-1: a fixed-point tonewheel organ on Dinghy's platform.
+/* B3+DRUM for the M-VAVE FM-1: R-Jeb's B3 ORGAN (a fixed-point tonewheel organ on Dinghy's platform) with a rhythm section
+ * from the Cheesebox 931 (CB-931) on the way. Fork by Skipper.
+ * B3 ORGAN for the M-VAVE FM-1: a fixed-point tonewheel organ on Dinghy's platform.
  *
  * The model follows setBfree (pantherb/setBfree, GPL-2.0-or-later, so it combines with Dinghy's GPL-3.0):
  *   - 91 tonewheels with the 60 Hz gear ratios of setBfree's tonegen.c (tables from tools/gen_organ.py)
@@ -21,7 +23,7 @@
  *               (CC 1, 7, 11, 30, 31, 64..66, 70..78, 80..83, 91..93, 95)
  *
  * Rules of the road (the chip has no FPU and no libgcc): integers only, no float, no 64-bit division. */
-#define APP_NAME "B3 ORGAN"                     /* the rescue and the crash screen say this */
+#define APP_NAME "B3+DRUM"                      /* the rescue and the crash screen say this */
 #include "platform.c"
 #include "organ_tab.h"
 
@@ -187,7 +189,7 @@ static void band_header(uint32_t scr)
     cv_begin(240, 16, C_BLACK);
     if (scr == 3u) cv_text(4, 0, &FONT_S, "TEST", C_ACC);
     else cv_text(4, 0, &FONT_S, scr == 0 ? "UPPER" : "UPPER INFO", scr == 0 ? C_ACC : C_OFF);
-    sp(sp(t, "B3 ORGAN v"), APP_VER)[0] = 0;
+    sp(sp(t, "B3+DRUM v"), APP_VER)[0] = 0;
     cv_text(238 - text_w(&FONT_S, t), 0, &FONT_S, t, C_OFF);
     cv_blit(0, 0);
 }
