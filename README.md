@@ -12,7 +12,7 @@
 >
 > | FM-1 | Job | KeyLab |
 > | --- | --- | --- |
-> | PLAY | Drums start/stop | Play |
+> | PLAY | Drums start/stop; flashes the beat while they run (long on the bar's first beat) | Play |
 > | REC | Intro (stopped) / fill (running) | Record |
 > | OCT- / OCT+ | Main A / B (at the next bar line); lit: what plays or waits | Rewind / Fast forward |
 > | SEQ | Outro | Stop |
@@ -23,7 +23,7 @@
 > | SAVE | Free | – |
 > | KNOB 1-4 | Rhythm, tempo, drum level, vibrato/chorus type | – |
 > | SELECT / ALGORITHM | Pick / set on the page (MAIN: the drawbars) | – |
-> | – | The nine drawbars, 16' to 1', on every page (2 ticks a step, clockwise pulls out) | Knobs 1-9 |
+> | – | The nine drawbars, 16' to 1', on every page (a step a message, clockwise pulls out; a knob sending absolute values sets its drawbar to its position) | Knobs 1-9 |
 > | PRESETS | setBfree's registrations, then your own 112 to 127 | Main encoder |
 > | MASTER | Volume | Fader 1: -48..+6 dB, under MASTER, with pickup |
 > | – | Drum level, with pickup | Fader 2 |

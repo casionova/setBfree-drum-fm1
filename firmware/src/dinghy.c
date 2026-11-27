@@ -13,7 +13,7 @@
  *
  * B3+DRUM 0.2: one manual (an attached keyboard plays it), the CR-78 rhythm section always to hand. The same on every page:
  *   keys        play the organ (key 0 = F3)            MASTER   volume (platform.c)        PRESETS  setBfree's registrations
- *   PLAY        drums start/stop    REC  intro (stopped) / fill (running)    OCT- / OCT+  main A / B    SEQ  outro
+ *   PLAY        drums start/stop (it flashes the beat: long on the first)    REC  intro (stopped) / fill (running)    OCT- / OCT+  main A / B    SEQ  outro
  *   FX          vibrato on/off      LFO  Leslie stop/slow/fast    SEL  overdrive on/off
  *   ENV         percussion on/off   ARP  2nd/3rd    EDIT  fast/slow    GLO  soft/normal    HOME  next page    SAVE  free
  *   KNOB1..4    rhythm, tempo, drum level, vibrato/chorus type (V1 C1 V2 C2 V3 C3)
@@ -555,14 +555,14 @@ static void do_tap(void)                        /* the KeyLab's Tap: the tempo f
 }
 
 /* ---- the KeyLab Essential mk3 on its CB-931 User Program (CB-931-FM1.keylabessential3), any channel.
- * Knobs 1-9 (endless, Relative 2: 64 + n; two's complement read too): the nine drawbars, 16' .. 1', on every page (KL_DB_TICKS
- * ticks a step, clockwise pulls out). Main encoder: turn PRESETS, click HOME. Fader 1: volume, fader 2: drum level (both with
+ * Knobs 1-9 (endless, Relative 2: 64 + n): the nine drawbars, 16' .. 1', on every page, a step a message (clockwise pulls out);
+ * a knob seen sending absolute values instead sets its drawbar to its position. Main encoder: turn PRESETS, click HOME. Fader 1: volume, fader 2: drum level (both with
  * pickup: a fader takes over once it reaches or passes the value). Transport: Play start/stop, Stop outro, Record intro/fill,
  * Rewind A, Fast forward B, Tap tap tempo. The other controllers it sends (pads CC 3, faders 3-9) do nothing here; setBfree's
  * drawbar, percussion and drive controllers (70..78, 80..83, 93) give way to it. */
-#define KL_DB_TICKS 2                           /* knob ticks per drawbar step */
 static const uint8_t KL_DB_CC[NB] = {74, 71, 76, 77, 93, 18, 19, 16, 17};   /* knobs 1..9 */
-static int32_t kl_enc[8], kl_pre, kl_acc[NB];   /* turns waiting for the main loop, by ENC id (none from the KeyLab now); PRESETS; drawbar ticks */
+static uint16_t kl_abs;                         /* bit i: knob i sends absolute values (seen outside 64 +- 16): its position is the drawbar */
+static int32_t kl_enc[8], kl_pre;               /* turns waiting for the main loop, by ENC id (none from the KeyLab now); PRESETS */
 typedef struct { uint32_t picked, lastv, lastset; } kl_fader_t;
 static kl_fader_t kl_f1 = {0, 255u, 255u}, kl_f2 = {0, 255u, 255u};
 static int32_t kl_rel(uint32_t v)               /* as CB-931's relDelta */
@@ -591,13 +591,16 @@ static void kl_bars(void)                       /* the drawbars as digits, for t
 static int kl_cc(uint32_t cc, uint32_t v)       /* 1: the KeyLab's (taken) */
 {
     uint32_t i;
-    for (i = 0; i < NB; i++)
+    for (i = 0; i < NB; i++)                  /* a drawbar: Relative 2 moves it one step a message, whatever the size (the KeyLab's
+                                                 * acceleration threw it end to end); a knob that turns out absolute sets it outright */
         if (cc == KL_DB_CC[i]) {
-            int32_t st;
-            kl_acc[i] += kl_rel(v);
-            st = kl_acc[i] / KL_DB_TICKS;
-            kl_acc[i] -= st * KL_DB_TICKS;
-            if (st) { P.db[i] = clampu((int32_t)P.db[i] + st, 8); sel0 = i; if (screen == PG_MAIN) pop_off(); kl_bars(); }
+            int32_t nv = (int32_t)P.db[i];
+            if (v < 48u || v > 80u) kl_abs |= (uint16_t)(1u << i);
+            if (kl_abs >> i & 1u) nv = (int32_t)((v * 8u + 63u) / 127u);
+            else if (v > 64u) nv++;
+            else if (v < 64u) nv--;
+            nv = clampu(nv, 8);
+            if (nv != (int32_t)P.db[i]) { P.db[i] = (uint8_t)nv; sel0 = i; if (screen == PG_MAIN) pop_off(); kl_bars(); }
             return 1;
         }
     switch (cc) {
@@ -1096,7 +1099,13 @@ static void app_main(void)
             fm1_led_key(BTN_OCT_UP, drp_running ? (pd < DRP_PARTS ? pd == DRP_MAIN_B : pt == DRP_MAIN_B) : pt == DRP_MAIN_B);
             fm1_led_key(BTN_SEQ, drp_running && (pt == DRP_OUTRO || pd == DRP_OUTRO));
             fm1_led_key(BTN_REC, drp_running && (pt == DRP_INTRO || pt == DRP_FILL_A || pt == DRP_FILL_B));
-            fm1_led_key(BTN_PLAY, drp_running != 0);
+            {                                   /* PLAY flashes the tempo while the drums run: long on the bar's first beat, short on the others */
+                static uint32_t last_beat = 0xFFu, flash_until;
+                if (drp_running) {
+                    if (drp_beat != last_beat) { last_beat = drp_beat; flash_until = fm1_ms + (drp_beat == 0u ? 220u : 90u); }
+                } else last_beat = 0xFFu;
+                fm1_led_key(BTN_PLAY, drp_running && (int32_t)(flash_until - fm1_ms) > 0);
+            }
         }
         fm1_led_key(BTN_FX, P.vup != 0);
         fm1_led_key(BTN_LFO, P.les != 0);

@@ -40,4 +40,12 @@
 6600 midi 0xB0 72 0
 6700 midi 0xB0 3 0
 9000 shot
-9100 end
+9200 midi 0xB0 74 70
+9210 midi 0xB0 74 66
+9220 midi 0xB0 74 66
+9300 shot
+9400 midi 0xB0 71 127
+9410 midi 0xB0 71 0
+9420 midi 0xB0 71 64
+9500 shot
+9600 end
