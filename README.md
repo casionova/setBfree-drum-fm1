@@ -3,8 +3,8 @@
 > **A fork of [R-Jeb's B3 ORGAN](https://github.com/R-Jeb/setBfree-fm1) (setBfree-fm1, GPL-3.0).** The organ is R-Jeb's, unchanged so
 > far. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): four synthesised kits (CT-403, Mini Pops 7, TR-606,
 > CR-78, plus the MT-40, MT-18 and VL-1), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and MIDI clock.
-> Work in progress: the drums' integer engine (`firmware/src/drum_core.h`) matches CB-931's sounds and is tested on the
-> computer (`tests/drum_test.c`); it is not in the firmware yet.
+> Work in progress: the drums' integer engine (`firmware/src/drum_core.h`) is tested on the computer against CB-931's
+> (`tests/drum_test.c`: loudness, octave bands and the shape of every sound); it is not in the firmware yet.
 > Package `b3drum.fwsc`, identity `FM-1_961`. Organ bugs that also happen on B3 ORGAN belong upstream; everything else here.
 
 The rest of this README is B3 ORGAN's own.
