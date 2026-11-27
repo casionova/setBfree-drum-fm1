@@ -1,13 +1,17 @@
 # B3+DRUM for the M-VAVE FM-1
 
 > **A fork of [R-Jeb's B3 ORGAN](https://github.com/R-Jeb/setBfree-fm1) (setBfree-fm1, GPL-3.0).** The organ is R-Jeb's, unchanged so
-> far. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): four synthesised kits (CT-403, Mini Pops 7, TR-606,
-> CR-78, plus the MT-40, MT-18 and VL-1), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and MIDI clock.
-> Work in progress: the drums' integer engine (`firmware/src/drum_core.h`) is tested on the computer against CB-931's
-> (`tests/drum_test.c`: loudness, octave bands and the shape of every sound). In the firmware so far only as a **test
-> rhythm** for measuring: on the TEST screen (KNOB 1 to screen 4) PLAY starts and stops it, SELECT picks the kit,
-> ALGORITHM the pattern (BEAT, or BUSY: the worst case); the last row shows the drums' time per block (us) and how many
-> voices sound.
+> far, apart from the screens. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): seven synthesised kits
+> (CT-403, Mini Pops 7, TR-606, CR-78, MT-40, MT-18, VL-1), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and
+> MIDI clock. Work in progress: the drums' integer engine (`firmware/src/drum_core.h`) is tested on the computer against
+> CB-931's (`tests/drum_test.c`: loudness, octave bands and the shape of every sound). In the firmware so far only as a
+> **test rhythm** for measuring: on the TEST screens PLAY starts and stops it, SELECT picks the kit, ALGORITHM the pattern
+> (BEAT, or BUSY: the worst case); TEST 1 shows the drums' time per block (us) and how many voices sound.
+>
+> **Big type.** Every screen uses Terminus 24 px (pop-ups 32 px) instead of 16 px. KNOB 1 steps through seven screens:
+> UPPER, LOWER, PEDAL (the drawbars with the value on each cap, the switches, the program), EQ (bass, middle, treble), MORE
+> (keys, drive, reverb, octave, all three manuals' drawbars), TEST 1 and TEST 2. KNOB 2..4, PRESETS, OCT-/OCT+ and REC (and
+> LFO / SEL off the manual screens) show what they set big for 1.5 s. The fonts: `tools/gen_font_big.py`.
 > Package `b3drum.fwsc`, identity `FM-1_961`. Organ bugs that also happen on B3 ORGAN belong upstream; everything else here.
 
 The rest of this README is B3 ORGAN's own.
