@@ -1,0 +1,41 @@
+# the KeyLab on CB-931's User Program; the pads (channel 10) silent; the drums from every page
+100 midi 0x99 36 120
+110 midi 0x99 37 120
+120 midi 0xA9 36 80
+2600 shot
+2700 midi 0x90 60 100
+2700 midi 0x90 67 100
+2800 midi 0xB0 107 127
+2810 midi 0xB0 107 0
+2900 midi 0xB0 93 65
+2950 midi 0xB0 18 67
+3000 shot
+3200 midi 0xB0 115 127
+3300 shot
+3400 midi 0xB0 71 65
+3410 midi 0xB0 71 65
+3420 midi 0xB0 71 65
+3500 midi 0xB0 77 63
+3600 shot
+3700 midi 0xB0 74 59
+3800 shot
+4000 midi 0xB0 75 0
+4100 shot
+4200 midi 0xB0 75 120
+4300 midi 0xB0 75 100
+4400 shot
+4500 midi 0xB0 108 127
+4600 midi 0xB0 104 127
+4700 shot
+5000 midi 0xB0 109 127
+5500 midi 0xB0 109 127
+6000 midi 0xB0 109 127
+6100 shot
+6200 midi 0xB0 114 65
+6300 shot
+6400 midi 0xB0 106 127
+6500 midi 0xB0 74 0
+6600 midi 0xB0 72 0
+6700 midi 0xB0 3 0
+9000 shot
+9100 end

@@ -33,6 +33,7 @@ static volatile struct {
 static volatile uint32_t pk_lo, pk_hi, mk_lo, mk_hi, pl_lo, pl_hi, ml_lo, ml_hi, pp_k, mp_k;
 static volatile uint32_t load_us, wheels_on;
 static volatile uint32_t sum_pk, sum_clip, out_pk;      /* the sum of the wheels before the preamp: its peak since the screen last looked, and the samples above full scale since the start */
+static volatile int32_t organ_vol = 4096;             /* B3+DRUM: the output volume, Q12 (1.0 = 4096), set from the main loop */
 static volatile uint32_t load_org, load_od, load_rv, load_le;   /* peaks since the screen last looked: organ, preamp, reverb, Leslie (us) */
 static volatile uint8_t fx_bypass;              /* tests: skip the reverb and the Leslie (the tone generator alone, in mono) */    /* the last block: render time, wheels sounding */
 
@@ -500,7 +501,7 @@ static void app_audio(int32_t *out, uint32_t n)
     t4 = fm1_ticks();
     opk = block_limit(&lim_out, lbuf, rbuf, n);      /* the output, after reverb and Leslie (they add gain too): the same limiter, over both channels */
     for (i = 0; i < n; i++) {
-        int32_t l = lbuf[i], r = rbuf[i];
+        int32_t l = (lbuf[i] * organ_vol) >> 12, r = (rbuf[i] * organ_vol) >> 12;   /* B3+DRUM: the volume (KeyLab knob 1), Q12 */
         out[2u * i] += l > 32767 ? 32767 : l < -32767 ? -32767 : l;
         out[2u * i + 1u] += r > 32767 ? 32767 : r < -32767 ? -32767 : r;
     }

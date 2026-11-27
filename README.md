@@ -1,24 +1,43 @@
 # B3+DRUM for the M-VAVE FM-1
 
-> **A fork of [R-Jeb's B3 ORGAN](https://github.com/R-Jeb/setBfree-fm1) (setBfree-fm1, GPL-3.0).** The organ is R-Jeb's, unchanged so
-> far, apart from the screens. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): seven synthesised kits
-> (CT-403, Mini Pops 7, TR-606, CR-78, MT-40, MT-18, VL-1), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and
-> MIDI clock (still to come, with control from a MIDI foot controller on channel 10).
+> **A fork of [R-Jeb's B3 ORGAN](https://github.com/R-Jeb/setBfree-fm1) (setBfree-fm1, GPL-3.0).** The organ is R-Jeb's, unchanged
+> apart from the controls and screens. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): the CR-78 kit, CB-931's
+> 30 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing and tempo. Package `b3drum.fwsc`, identity `FM-1_961`. Organ bugs that
+> also happen on B3 ORGAN belong upstream; everything else here.
 >
-> **DRUMS screen** (KNOB 1, after PEDAL): PLAY starts and stops, REC plays the intro (stopped) or a fill (playing), ENV and
-> ARP pick main A and B (at the next bar line), SEQ the outro; their lights show what plays. SELECT picks a field, ALGORITHM
-> sets it: the rhythm (CB-931's 30: 20 after the CR-78's presets, 10 from the VL-1; TEST BUSY last, for measuring), the kit,
-> the tempo (40..240), the swing (off, 51..75 %) and the drum level (off, -22.5..+12 dB). The beats of the bar light up; the
-> part shows on the right, with the next one when a change waits ("B>END"). The drum engine (`firmware/src/drum_core.h`)
-> and the player (`drum_play.h`) are tested on the computer against CB-931's: every sound by loudness, octave bands and
-> shape (`tests/drum_test.c`), every rhythm by the same hits at the same times (`tests/seq_test.c`). TEST 1 shows the
-> drums' time per block (us) and how many voices sound. Not saved yet: the drum settings start afresh at power-on.
+> **0.2: one manual, the drums always to hand.** Made to be played from an attached keyboard (a KeyLab Essential mk3 on its CB-931
+> User Program), with the FM-1 sitting on the KeyLab's pads. Every MIDI channel plays the one manual, except channel 10 (the pads),
+> which is silent. The buttons and K1-K4 do the same thing on every page:
 >
-> **Big type.** Every screen uses Terminus 24 px (pop-ups 32 px) instead of 16 px. KNOB 1 steps through seven screens:
-> UPPER, LOWER, PEDAL (the drawbars with the value on each cap, the switches, the program), EQ (bass, middle, treble), MORE
-> (keys, drive, reverb, octave, all three manuals' drawbars), TEST 1 and TEST 2. KNOB 2..4, PRESETS, OCT-/OCT+ and REC (and
-> LFO / SEL off the manual screens) show what they set big for 1.5 s. The fonts: `tools/gen_font_big.py`.
-> Package `b3drum.fwsc`, identity `FM-1_961`. Organ bugs that also happen on B3 ORGAN belong upstream; everything else here.
+> | FM-1 | Job | KeyLab |
+> | --- | --- | --- |
+> | PLAY | Drums start/stop | Play |
+> | REC | Intro (stopped) / fill (running) | Record |
+> | OCT- / OCT+ | Main A / B (at the next bar line); lit: what plays or waits | Rewind / Fast forward |
+> | SEQ | Outro | Stop |
+> | – | Tap tempo | Tap |
+> | FX / LFO / SEL | Vibrato on/off; Leslie stop, slow, fast; overdrive on/off | – |
+> | ENV / ARP / EDIT / GLO | Percussion on/off; 2nd/3rd; fast/slow; soft/normal | – |
+> | HOME | Next page: MAIN, ORGAN, DRUMS, EQ, TEST 1, TEST 2 | Main encoder click |
+> | SAVE | Free | – |
+> | KNOB 1-4 | Rhythm, tempo, drum level, vibrato/chorus type | Knobs 5-8 |
+> | SELECT / ALGORITHM | Pick / set on the page | Knobs 2 / 4 |
+> | PRESETS | setBfree's registrations, then your own 112 to 127 | Knob 3, main encoder |
+> | MASTER | Volume | Knob 1: volume -48..+6 dB, under MASTER |
+> | – | Drum level, with pickup (it takes over once it reaches the level) | Fader 2 |
+>
+> **Pages** (Terminus 24 px; pop-ups 32 px): **MAIN** the drawbars (SELECT picks one, ALGORITHM sets it), the switches, a drum
+> strip (the beats, the rhythm, the tempo) and the program; **ORGAN** a list: vibrato, Leslie, overdrive, drive, reverb, the
+> percussion and the volume; **DRUMS** the beats and the part, then rhythm, tempo (40..240), swing (off, 51..75 %), level (off,
+> -22.5..+12 dB); **EQ** bass, middle, treble; **TEST 1/2** the load figures and MIDI. The header shows what the drums play on
+> every page ("A", "FILL>B", "B>END"). Whatever a control sets that the page does not show comes up big for 1.5 s; SELECT or
+> ALGORITHM puts it away at once. No screen saver: the logo shows for 2.5 s at power-on and never takes a knob turn.
+> The rhythm, tempo, swing, drum level and volume are saved with the rest of the settings, 2 s after a change once nothing sounds.
+>
+> The drum engine (`firmware/src/drum_core.h`) and the player (`drum_play.h`) are tested on the computer against CB-931's:
+> every sound by loudness, octave bands and shape (`tests/drum_test.c`), every rhythm by the same hits at the same times
+> (`tests/seq_test.c`). Still to come: MIDI clock, the drum settings in your own programs. The SMK-37 build compiles but
+> follows this layout only partly (untested).
 
 The rest of this README is B3 ORGAN's own.
 
