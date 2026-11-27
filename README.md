@@ -7,7 +7,8 @@
 >
 > **0.2: one manual, the drums always to hand.** Made to be played from an attached keyboard (a KeyLab Essential mk3 on its CB-931
 > User Program), with the FM-1 sitting on the KeyLab's pads. Every MIDI channel plays the one manual, except channel 10 (the pads),
-> which is silent. The buttons and K1-K4 do the same thing on every page:
+> which is silent. A fader with pickup takes over only once it reaches or passes the value, so nothing jumps.
+> The buttons and K1-K4 do the same thing on every page:
 >
 > | FM-1 | Job | KeyLab |
 > | --- | --- | --- |
@@ -20,11 +21,12 @@
 > | ENV / ARP / EDIT / GLO | Percussion on/off; 2nd/3rd; fast/slow; soft/normal | – |
 > | HOME | Next page: MAIN, ORGAN, DRUMS, EQ, TEST 1, TEST 2 | Main encoder click |
 > | SAVE | Free | – |
-> | KNOB 1-4 | Rhythm, tempo, drum level, vibrato/chorus type | Knobs 5-8 |
-> | SELECT / ALGORITHM | Pick / set on the page | Knobs 2 / 4 |
-> | PRESETS | setBfree's registrations, then your own 112 to 127 | Knob 3, main encoder |
-> | MASTER | Volume | Knob 1: volume -48..+6 dB, under MASTER |
-> | – | Drum level, with pickup (it takes over once it reaches the level) | Fader 2 |
+> | KNOB 1-4 | Rhythm, tempo, drum level, vibrato/chorus type | – |
+> | SELECT / ALGORITHM | Pick / set on the page (MAIN: the drawbars) | – |
+> | – | The nine drawbars, 16' to 1', on every page (2 ticks a step, clockwise pulls out) | Knobs 1-9 |
+> | PRESETS | setBfree's registrations, then your own 112 to 127 | Main encoder |
+> | MASTER | Volume | Fader 1: -48..+6 dB, under MASTER, with pickup |
+> | – | Drum level, with pickup | Fader 2 |
 >
 > **Pages** (Terminus 24 px; pop-ups 32 px): **MAIN** the drawbars (SELECT picks one, ALGORITHM sets it), the switches, a drum
 > strip (the beats, the rhythm, the tempo) and the program; **ORGAN** a list: vibrato, Leslie, overdrive, drive, reverb, the
