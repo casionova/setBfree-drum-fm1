@@ -54,7 +54,9 @@ jobs:
       - name: B3+DRUM drums (integer engine against CB-931's float drums)
         run: |
           tools/gen_drums.sh
-          git diff --exit-code firmware/src/drum_tab.h || { echo "::error::drum_tab.h is not what tools/gen_drums.sh makes from tools/cb931: run it and commit"; exit 1; }
+          git diff --exit-code firmware/src/drum_tab.h firmware/src/drum_styles.h || { echo "::error::drum_tab.h / drum_styles.h are not what tools/gen_drums.sh makes from tools/cb931: run it and commit"; exit 1; }
+          cc -O1 -Wall -Wno-unused-function -Ifirmware/src -Itools/cb931 -o build/seq_test tests/seq_test.c tools/cb931/rhythm.c tools/cb931/factory_styles.c tools/cb931/drums.c -lm
+          build/seq_test
           cc -O1 -Wall -Wno-unused-function -Ifirmware/src -Itools/cb931 -o build/drum_test tests/drum_test.c tools/cb931/drums.c -lm
           build/drum_test | tee build/drum_test.txt
           { echo "### Drums: integer engine against CB-931"; echo '```'; tail -3 build/drum_test.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

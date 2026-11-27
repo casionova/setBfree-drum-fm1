@@ -13,9 +13,10 @@
  *
  *   keys        play the organ (key 0 = F3, OCT-/OCT+ shifts) on the manual REC chose    MASTER   volume (platform.c)
  *   SELECT      choose a drawbar    ALGORITHM  set it 0..8         PRESETS  setBfree's registrations (default.pgm)
- *               (EQ screen: the equalizer's bass, middle, treble, -9..+9 dB in 0.5 dB steps; TEST screens: the drums' test rhythm,
- *               PLAY starts it, SELECT the kit, ALGORITHM the pattern)
- *   KNOB1       screen (B3+DRUM, big type): UPPER, LOWER, PEDAL, EQ, MORE, TEST 1, TEST 2
+ *               (EQ screen: the equalizer's bass, middle, treble, -9..+9 dB in 0.5 dB steps; DRUMS screen: rhythm, kit, tempo,
+ *               swing, level; TEST screens: PLAY starts the drums, SELECT the rhythm, ALGORITHM the kit)
+ *   DRUMS       (B3+DRUM, on the DRUMS screen) PLAY start/stop, REC intro/fill, ENV main A, ARP main B, SEQ outro
+ *   KNOB1       screen (B3+DRUM, big type): UPPER, LOWER, PEDAL, DRUMS, EQ, MORE, TEST 1, TEST 2
  *               KNOB2   vibrato V1 C1 V2 C2 V3 C3    KNOB3   overdrive drive 0..20    KNOB4   reverb (a knob shows its value big for a moment)
  *   FX          vibrato on/off (upper on screen 1, lower on screen 2)    LFO    Leslie stop/slow/fast    SEL    overdrive on/off
  *   ENV         percussion on/off   ARP  2nd/3rd   SEQ  fast/slow   PLAY  soft/normal   (screen 1)     REC   keys: upper/lower/pedal
@@ -84,18 +85,21 @@ static void draw_battery(uint32_t st)           /* st: bars 0 .. 4, bit 3 = a US
 
 /* ---- B3+DRUM: the screens in big type (FONT_M, Terminus 24 px; pop-ups FONT_XL, 32 px). Seven screens, KNOB 1:
  *   0 UPPER, 1 LOWER, 2 PEDAL   the manual's drawbars (a 24 px digit on each cap), three rows of switches, the program
- *   3 EQ                        the output equalizer's bass, middle, treble (SELECT picks one, ALGORITHM sets it)
- *   4 MORE                      keys, drive, reverb, octave, all three manuals' drawbars as digits
- *   5 TEST 1, 6 TEST 2          the load figures, the limiters, MIDI; the drums' test rhythm (PLAY, SELECT, ALGORITHM)
+ *   3 DRUMS                     the rhythm section (drum_play.h): SELECT picks rhythm / kit / tempo / swing / level, ALGORITHM
+ *                               sets it; PLAY start/stop, REC intro/fill, ENV A, ARP B, SEQ outro; the beats of the bar, the part
+ *   4 EQ                        the output equalizer's bass, middle, treble (SELECT picks one, ALGORITHM sets it)
+ *   5 MORE                      keys, drive, reverb, octave, all three manuals' drawbars as digits
+ *   6 TEST 1, 7 TEST 2          the load figures, the limiters, MIDI (PLAY starts the drums, SELECT the rhythm: TEST BUSY last)
  * A knob (KNOB 2..4, PRESETS), the octave, the keys, and the Leslie or the overdrive off their screens, show what they set big
  * for a moment (popup()). Each screen is built from bands (a canvas of 240 x h, at most 64 rows on the FM-1: taller bands are
  * drawn in strips with cv_oy), drawn only when what they show has changed. */
 #define FM (&FONT_M)
 #define FW 12                                   /* FONT_M is 12 x 24, fixed */
-#define NSCREENS 7u
-#define SCR_EQ 3u
-#define SCR_MORE 4u
-#define SCR_TEST 5u                             /* and 6 */
+#define NSCREENS 8u
+#define SCR_DRUMS 3u
+#define SCR_EQ 4u
+#define SCR_MORE 5u
+#define SCR_TEST 6u                             /* and 7 */
 #define Y_HDR 0
 #define Y_BARS 28                               /* the drawbars (or the equalizer): 92 rows */
 #define H_BARS 92
@@ -108,7 +112,7 @@ static void draw_battery(uint32_t st)           /* st: bars 0 .. 4, bit 3 = a US
 #define H_LIST 26
 #define Y_PRESET 212
 static const uint8_t PEDID[2] = {0, 2};         /* the pedal's drawbars sit in the columns of the 16' and the 8' */
-static uint32_t screen, sel[4];                 /* sel: the drawbar picked on screens 0..2, the equalizer's band on screen 3 */
+static uint32_t screen, sel[3], eq_sel, drp_field;   /* the drawbar picked on screens 0..2; the equalizer's band; the DRUMS field */
 #ifdef DINGHY_HOST
 #define CORES() 2u
 #else
@@ -177,14 +181,14 @@ static void draw_eq(int32_t y0, uint32_t selected)
 
 static void band_header(uint32_t scr)
 {
-    static const char *const NAME[NSCREENS] = {"UPPER", "LOWER", "PEDAL", "EQ", "MORE", "TEST 1", "TEST 2"};
+    static const char *const NAME[NSCREENS] = {"UPPER", "LOWER", "PEDAL", "DRUMS", "EQ", "MORE", "TEST 1", "TEST 2"};
     char t[24], *q = t;
     cv_begin(240, 26, C_BLACK);
     cv_text(4, 1, FM, NAME[scr < NSCREENS ? scr : 0], C_ACC);
-    if (scr >= SCR_TEST) q = sp(sp(sp(q, DRM_KIT_NAME[drp_kit]), " "), DRP_PAT_NAME[drp_pat]);   /* the test rhythm's kit and pattern */
+    if (scr >= SCR_TEST || scr == SCR_DRUMS) q = drp_running ? sp(q, scr == SCR_DRUMS ? "" : "DRUMS ON") : sp(q, scr == SCR_DRUMS ? "STOP" : "");
     else if (scr_oct) { q = sp(q, "OCT "); *q++ = scr_oct > 0 ? '+' : '-'; *q++ = (char)('0' + (scr_oct > 0 ? scr_oct : -scr_oct)); }
     *q = 0;
-    cv_text(236 - text_w(FM, t), 1, FM, t, scr >= SCR_TEST ? C_BAR : C_ACC);
+    cv_text(236 - text_w(FM, t), 1, FM, t, scr >= SCR_TEST || scr == SCR_DRUMS ? C_BAR : C_ACC);
     cv_rect(0, 25, 240, 1, C_TRK);
     cv_blit(0, Y_HDR);
 }
@@ -195,7 +199,7 @@ static void band_bars(uint32_t scr)             /* screens 0..2: the manual's dr
     for (o = 0; o < H_BARS; o += 46u) {
         cv_begin(240, 46, C_BLACK);
         cv_oy = -(int32_t)o;
-        if (scr == SCR_EQ) draw_eq(0, sel[3]);
+        if (scr == SCR_EQ) draw_eq(0, eq_sel);
         else draw_bars(1, v, scr == 2 ? PEDID : 0, scr == 2 ? 2u : NB, sel[scr]);
         cv_oy = 0;
         cv_blit(0, Y_BARS + o);
@@ -213,7 +217,7 @@ static void band_ctrl(uint32_t scr, uint32_t r)  /* the switches under the drawb
         uint32_t k;
         for (k = 0; k < 3u; k++) {              /* row 0 the names, row 1 the gains (dB) */
             if (r == 0) { q = sp(t, EQN[k]); *q = 0; } else eq_label(t, eq_p[2u * k]);
-            cv_text(EQ_X(k) + 20 - text_w(FM, t) / 2, 1, FM, t, sel[3] == k ? C_ACC : (r ? C_BAR : C_OFF));
+            cv_text(EQ_X(k) + 20 - text_w(FM, t) / 2, 1, FM, t, eq_sel == k ? C_ACC : (r ? C_BAR : C_OFF));
         }
     } else if (r == 0) {                        /* vibrato / chorus: the type (KNOB 2) and where it is on (FX) */
         x = chip(0, 0, VIB[P.vtype % 6u], 1, 1) + 6;
@@ -231,6 +235,59 @@ static void band_ctrl(uint32_t scr, uint32_t r)  /* the switches under the drawb
         chip(x, 0, P.od ? "OD ON" : "OD OFF", P.od, 1);
     }
     cv_blit(0, Y_CTRL + H_ROW * r);
+}
+
+/* ---- the DRUMS screen: the beats of the bar and the part (row 0), then five fields (SELECT picks, ALGORITHM sets) */
+#define DRP_FIELDS 5u
+#define Y_DRUMS 30
+#define H_DRUMS 30
+static const char *const PARTN[DRP_PARTS] = {"INTRO", "MAIN A", "FILL", "MAIN B", "FILL", "OUTRO"};
+static const char *const PARTS[DRP_PARTS] = {"INTRO", "A", "FILL", "B", "FILL", "END"};   /* short, with a change waiting: "B>END" */
+static char *level_txt(char *q, uint32_t lv)    /* "+6 dB", "-1.5 dB", "OFF" */
+{
+    int32_t h;                                  /* half dB x 3: (lv - 16) x 1.5 dB */
+    if (!lv) return sp(q, "OFF");
+    h = ((int32_t)lv - (int32_t)DRP_LEVEL_0DB) * 3;   /* in half dB */
+    if (h) *q++ = h < 0 ? '-' : '+';
+    if (h < 0) h = -h;
+    q = su(q, (uint32_t)h / 2u);
+    if (h & 1) q = sp(q, ".5");
+    return sp(q, " dB");
+}
+static void band_drums(uint32_t r)              /* r 0: beats and part; 1..5: rhythm, kit, tempo, swing, level */
+{
+    char t[40], *q = t;
+    cv_begin(240, H_DRUMS, C_BLACK);
+    if (r == 0) {
+        uint32_t i, nb = drp_beats < 3u ? 3u : drp_beats > 4u ? 4u : drp_beats;
+        for (i = 0; i < nb; i++) {
+            int32_t x = 4 + 30 * (int32_t)i;
+            if (drp_running && i == drp_beat) cv_rect(x, 2, 26, 24, i == 0 ? C_ACC : C_BAR);
+            else cv_box(x, 2, 26, 24, drp_running ? C_OFF : C_TRK);
+        }
+        if (!drp_running) q = sp(q, drp_part == DRP_MAIN_B ? "B" : "A");
+        else {
+            if (drp_pending < DRP_PARTS) q = sp(sp(sp(q, drp_part == DRP_OUTRO ? "OUTRO" : PARTS[drp_part % DRP_PARTS]), ">"), PARTS[drp_pending]);
+            else q = sp(q, PARTN[drp_part % DRP_PARTS]);
+        }
+        *q = 0;
+        cv_text(236 - text_w(FM, t), 2, FM, t, drp_running ? C_ACC : C_OFF);
+    } else {
+        static const char *const LAB[DRP_FIELDS] = {"", "KIT", "TEMPO", "SWING", "LEVEL"};
+        uint32_t f = r - 1u, on = f == drp_field;
+        switch (f) {
+        case 0: q = sp(sp(su(q, drp_style + 1u), " "), drp_style_get(drp_style)->name); break;
+        case 1: q = sp(q, DRM_KIT_NAME[drp_kit % DRM_KITS]); break;
+        case 2: q = su(q, drp_bpm); break;
+        case 3: q = drp_swing <= 50u ? sp(q, "OFF") : sp(su(q, drp_swing), " %"); break;
+        default: q = level_txt(q, drp_level); break;
+        }
+        *q = 0;
+        if (on) cv_box(0, 0, 240, H_DRUMS - 2, C_ACC);
+        if (f) cv_text(6, 2, FM, LAB[f], on ? C_ACC : C_OFF);
+        cv_text(f ? 6 + 6 * FW : 6, 2, FM, t, on ? C_ACC : C_BAR);
+    }
+    cv_blit(0, Y_DRUMS + H_DRUMS * r);
 }
 
 /* ---- rows of text: MORE (7) and the two TEST screens (8 each) */
@@ -260,8 +317,8 @@ static uint32_t list_vals(uint32_t scr, uint32_t r, uint32_t *a, uint32_t *b)   
     case 3: *a = ld_od; return 0;
     case 4: *a = ld_rv; return 0;
     case 5: *a = ld_le; return 0;
-    case 6: *a = drp_on ? ld_dr : 0u; *b = drp_on; return 0;
-    case 7: *a = ld_dv; *b = drp_on; return 0;
+    case 6: *a = drp_running ? ld_dr : 0u; *b = drp_running; return 0;
+    case 7: *a = ld_dv; *b = drp_running; return 0;
     case 8: *a = load_wheels; return 0;
     case 9: *a = CORES(); return CORES() != 2u;
     case 10: *a = ld_pk; return ld_pk > 100u;
@@ -699,7 +756,7 @@ static void app_main(void)
 
     for (i = 0; i < NW; i++) { seed = seed * 1664525u + 1013904223u; wph[i] = seed; }   /* the wheels start anywhere */
     for (i = 0; i < NKEYS; i++) { held[i] = 255; heldm[i] = 0; }
-    sel[0] = sel[1] = 2; sel[2] = 0; sel[3] = 0;
+    sel[0] = sel[1] = 2; sel[2] = 0; eq_sel = 0;
 #if BOARD_SMK37
     smk_pad_events = 1;                         /* the pads are ours (events), not white keys */
 #endif
@@ -768,27 +825,42 @@ static void app_main(void)
         if (b & (1u << BTN_FX)) { if (screen == 0) P.vup ^= 1u; else if (screen == 1) P.vlo ^= 1u; }   /* vibrato / chorus on the manual of the screen */
         if (b & (1u << BTN_LFO)) { P.les = (uint8_t)((P.les + 1u) % 3u); if (screen > 2u) popup("LES", LES[P.les % 3u]); }   /* Leslie: stop, slow, fast */
         if (b & (1u << BTN_SEL)) { P.od ^= 1u; if (screen > 2u) popup("OD", P.od ? "ON" : "OFF"); }   /* overdrive on / off */
-        if (b & (1u << BTN_REC)) { P.keys = (uint8_t)((P.keys + 1u) % 3u); popup("KEYS", KEYN[P.keys % 3u]); }   /* the FM-1's own keys: upper, lower, pedal */
+        if (screen == SCR_DRUMS) {              /* the rhythm section's buttons (as CB-931's: PLAY start/stop, REC intro/fill) */
+            if (b & (1u << BTN_PLAY)) drp_cmd(DRP_CMD_START_STOP);
+            if (b & (1u << BTN_REC)) drp_cmd(DRP_CMD_INTRO_FILL);
+            if (b & (1u << BTN_ENV)) drp_cmd(DRP_CMD_A);
+            if (b & (1u << BTN_ARP)) drp_cmd(DRP_CMD_B);
+            if (b & (1u << BTN_SEQ)) drp_cmd(DRP_CMD_OUTRO);
+        } else if (b & (1u << BTN_REC)) { P.keys = (uint8_t)((P.keys + 1u) % 3u); popup("KEYS", KEYN[P.keys % 3u]); }   /* the FM-1's own keys: upper, lower, pedal */
         if (screen == 0) {                      /* percussion is the upper manual's */
             if (b & (1u << BTN_ENV)) P.perc ^= 1u;
             if (b & (1u << BTN_ARP)) P.perc3 ^= 1u;
             if (b & (1u << BTN_SEQ)) P.fast ^= 1u;
             if (b & (1u << BTN_PLAY)) P.soft ^= 1u;
         }
-        if (screen >= SCR_TEST && (b & (1u << BTN_PLAY))) drp_on ^= 1u;   /* B3+DRUM: the test rhythm */
+        if (screen >= SCR_TEST && (b & (1u << BTN_PLAY))) drp_cmd(DRP_CMD_START_STOP);   /* B3+DRUM: the drums, to measure them */
 
 #define enc_in(id) (t_enc = fm1_enc_take(id), t_enc ? (t_input = fm1_ms, t_enc) : 0)
         if ((e = enc_in(ENC_KNOB1)) != 0) screen = clampu((int32_t)screen + e, (int32_t)NSCREENS - 1);
         if ((e = enc_in(ENC_SELECT)) != 0) {
             if (screen < 3u) sel[screen] = clampu((int32_t)sel[screen] + e, screen == 2 ? 1 : 8);
-            else if (screen == SCR_EQ) sel[3] = clampu((int32_t)sel[3] + e, 2);
-            else if (screen >= SCR_TEST) drp_kit = clampu((int32_t)drp_kit + e, (int32_t)DRM_KITS - 1);   /* B3+DRUM: the test rhythm's kit */
+            else if (screen == SCR_EQ) eq_sel = clampu((int32_t)eq_sel + e, 2);
+            else if (screen == SCR_DRUMS) drp_field = clampu((int32_t)drp_field + e, (int32_t)DRP_FIELDS - 1);
+            else if (screen >= SCR_TEST) drp_style = clampu((int32_t)drp_style + e, (int32_t)DRP_NSTYLES - 1);   /* TEST BUSY: the last */
         }
-        if ((e = enc_in(ENC_ALGORITHM)) != 0 && screen >= SCR_TEST) drp_pat = clampu((int32_t)drp_pat + e, (int32_t)DRP_NPAT - 1);   /* B3+DRUM */
+        if ((e = enc_in(ENC_ALGORITHM)) != 0 && screen == SCR_DRUMS) {   /* the DRUMS field */
+            switch (drp_field) {
+            case 0: drp_style = clampu((int32_t)drp_style + e, (int32_t)DRP_NSTYLES - 1); break;
+            case 1: drp_kit = clampu((int32_t)drp_kit + e, (int32_t)DRM_KITS - 1); break;
+            case 2: { int32_t v = (int32_t)drp_bpm + e; drp_bpm = (uint32_t)(v < 40 ? 40 : v > 240 ? 240 : v); break; }
+            case 3: { int32_t v = (int32_t)drp_swing + e; drp_swing = (uint32_t)(v < 50 ? 50 : v > 75 ? 75 : v); break; }
+            default: drp_level = clampu((int32_t)drp_level + e, (int32_t)DRP_LEVELS - 1); break;
+            }
+        } else if (e != 0 && screen >= SCR_TEST) drp_kit = clampu((int32_t)drp_kit + e, (int32_t)DRM_KITS - 1);
         else if (e != 0 && screen == SCR_EQ) {  /* the equalizer: 0.5 dB a step */
             uint16_t ep[EQ_NP];
             for (k = 0; k < EQ_NP; k++) ep[k] = eq_p[k];
-            ep[2u * sel[3]] = (uint16_t)clampu((int32_t)ep[2u * sel[3]] + e, 36);
+            ep[2u * eq_sel] = (uint16_t)clampu((int32_t)ep[2u * eq_sel] + e, 36);
             eq_set(ep);
         } else if (e != 0 && screen < 3u) {
             volatile uint8_t *db = screen == 0 ? P.db : screen == 1 ? P.dbl : P.dbp;
@@ -855,12 +927,21 @@ static void app_main(void)
         fm1_led_key(BTN_OCT_UP, oct > 0);
         fm1_led_key(BTN_FX, screen == 0 ? P.vup != 0 : screen == 1 ? P.vlo != 0 : 0);
         fm1_led_key(BTN_LFO, P.les != 0);
-        fm1_led_key(BTN_ENV, P.perc != 0);
         fm1_led_key(BTN_SEL, P.od != 0);
-        fm1_led_key(BTN_ARP, P.perc3 != 0);
-        fm1_led_key(BTN_SEQ, P.fast != 0);
-        fm1_led_key(BTN_PLAY, screen >= SCR_TEST ? drp_on != 0 : P.soft != 0);
-        fm1_led_key(BTN_REC, P.keys != 0);
+        if (screen == SCR_DRUMS) {              /* the rhythm section: what plays (A, B, a fill or the intro, the outro) */
+            uint32_t pt = drp_part, pd = drp_pending;
+            fm1_led_key(BTN_ENV, drp_running ? (pd < DRP_PARTS ? pd == DRP_MAIN_A : pt == DRP_MAIN_A) : pt != DRP_MAIN_B);
+            fm1_led_key(BTN_ARP, drp_running ? (pd < DRP_PARTS ? pd == DRP_MAIN_B : pt == DRP_MAIN_B) : pt == DRP_MAIN_B);
+            fm1_led_key(BTN_SEQ, drp_running && (pt == DRP_OUTRO || pd == DRP_OUTRO));
+            fm1_led_key(BTN_REC, drp_running && (pt == DRP_INTRO || pt == DRP_FILL_A || pt == DRP_FILL_B));
+            fm1_led_key(BTN_PLAY, drp_running != 0);
+        } else {
+            fm1_led_key(BTN_ENV, P.perc != 0);
+            fm1_led_key(BTN_ARP, P.perc3 != 0);
+            fm1_led_key(BTN_SEQ, P.fast != 0);
+            fm1_led_key(BTN_PLAY, screen >= SCR_TEST ? drp_running != 0 : P.soft != 0);
+            fm1_led_key(BTN_REC, P.keys != 0);
+        }
 
         if (fm1_ms - t_load > 500u) {           /* how close to the 5800 us a block has: the number to watch */
             t_load = fm1_ms;
@@ -882,11 +963,18 @@ static void app_main(void)
         scr_oct = oct;
         if (!logo_on) {                         /* each band again when what it shows has changed */
             uint32_t h, r, n, drew = 0;
-            h = hmix(hmix(hmix(hmix(0, screen), (uint32_t)(oct + 8)), drp_kit), drp_pat);
+            h = hmix(hmix(hmix(0, screen), (uint32_t)(oct + 8)), drp_running);
             if (h != hash[0]) { hash[0] = h; band_header(screen); drew = 1; }
-            if (screen <= SCR_EQ) {
+            if (screen == SCR_DRUMS) {
+                for (r = 0; r <= DRP_FIELDS; r++) {
+                    h = hmix(hmix(5, screen), r);
+                    if (r == 0) h = hmix(hmix(hmix(hmix(hmix(h, drp_running), drp_part), drp_pending), drp_beat), drp_beats);
+                    else h = hmix(hmix(hmix(hmix(hmix(hmix(h, drp_field), drp_style), drp_kit), drp_bpm), drp_swing), drp_level);
+                    if (h != hash[9u + r]) { hash[9u + r] = h; band_drums(r); drew = 1; }
+                }
+            } else if (screen <= SCR_EQ) {
                 h = hmix(1, screen);
-                if (screen == SCR_EQ) { for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]); h = hmix(h, sel[3]); }
+                if (screen == SCR_EQ) { for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]); h = hmix(h, eq_sel); }
                 else {
                     const volatile uint8_t *v = screen == 0 ? P.db : screen == 1 ? P.dbl : P.dbp;
                     for (i = 0; i < (screen == 2u ? 2u : NB); i++) h = hmix(h, v[i]);
@@ -896,7 +984,7 @@ static void app_main(void)
                 n = screen == SCR_EQ ? 2u : 3u;
                 for (r = 0; r < n; r++) {
                     h = hmix(hmix(2, screen), r);
-                    if (screen == SCR_EQ) { for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]); h = hmix(h, sel[3]); }
+                    if (screen == SCR_EQ) { for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]); h = hmix(h, eq_sel); }
                     else if (r == 0) h = hmix(hmix(hmix(h, P.vtype), P.vup), P.vlo);
                     else if (r == 1) h = hmix(hmix(hmix(hmix(h, P.perc), P.perc3), P.fast), P.soft);
                     else h = hmix(hmix(h, P.les), P.od);

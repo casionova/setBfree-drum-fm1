@@ -3,10 +3,16 @@
 > **A fork of [R-Jeb's B3 ORGAN](https://github.com/R-Jeb/setBfree-fm1) (setBfree-fm1, GPL-3.0).** The organ is R-Jeb's, unchanged so
 > far, apart from the screens. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): seven synthesised kits
 > (CT-403, Mini Pops 7, TR-606, CR-78, MT-40, MT-18, VL-1), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and
-> MIDI clock. Work in progress: the drums' integer engine (`firmware/src/drum_core.h`) is tested on the computer against
-> CB-931's (`tests/drum_test.c`: loudness, octave bands and the shape of every sound). In the firmware so far only as a
-> **test rhythm** for measuring: on the TEST screens PLAY starts and stops it, SELECT picks the kit, ALGORITHM the pattern
-> (BEAT, or BUSY: the worst case); TEST 1 shows the drums' time per block (us) and how many voices sound.
+> MIDI clock (still to come, with control from a MIDI foot controller on channel 10).
+>
+> **DRUMS screen** (KNOB 1, after PEDAL): PLAY starts and stops, REC plays the intro (stopped) or a fill (playing), ENV and
+> ARP pick main A and B (at the next bar line), SEQ the outro; their lights show what plays. SELECT picks a field, ALGORITHM
+> sets it: the rhythm (CB-931's 30: 20 after the CR-78's presets, 10 from the VL-1; TEST BUSY last, for measuring), the kit,
+> the tempo (40..240), the swing (off, 51..75 %) and the drum level (off, -22.5..+12 dB). The beats of the bar light up; the
+> part shows on the right, with the next one when a change waits ("B>END"). The drum engine (`firmware/src/drum_core.h`)
+> and the player (`drum_play.h`) are tested on the computer against CB-931's: every sound by loudness, octave bands and
+> shape (`tests/drum_test.c`), every rhythm by the same hits at the same times (`tests/seq_test.c`). TEST 1 shows the
+> drums' time per block (us) and how many voices sound. Not saved yet: the drum settings start afresh at power-on.
 >
 > **Big type.** Every screen uses Terminus 24 px (pop-ups 32 px) instead of 16 px. KNOB 1 steps through seven screens:
 > UPPER, LOWER, PEDAL (the drawbars with the value on each cap, the switches, the program), EQ (bass, middle, treble), MORE

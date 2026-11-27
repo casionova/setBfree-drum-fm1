@@ -3,11 +3,17 @@
 100 midi 0x90 64 100
 100 midi 0x90 67 100
 200 enc 2 3
-400 btn 12
-2500 shot
-2600 enc 1 1
-2700 enc 0 -2
-4800 shot
-5000 btn 12
-6500 shot
-6600 end
+400 shot
+500 btn 12
+1700 shot
+2300 btn 13
+2600 shot
+3100 btn 10
+3300 shot
+4300 enc 0 4
+4400 enc 1 -4
+4500 shot
+6000 btn 11
+6300 shot
+9500 shot
+9600 end

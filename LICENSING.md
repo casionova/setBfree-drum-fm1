@@ -12,7 +12,8 @@ complete source under the same licence too.
 | The app `firmware/src/dinghy.c`, the wiring `platform.c`, the host mode `tests/`, the docs | zvenson |
 | B3 ORGAN: the organ engine (`firmware/src/organ_*.h`), its app in `dinghy.c`, the tools and tests that go with it | R-Jeb ([setBfree-fm1](https://github.com/R-Jeb/setBfree-fm1)) |
 | B3+DRUM: the fork and the rhythm section (from the Cheesebox 931) | Skipper |
-| The drums: `firmware/src/drum_core.h`, `tools/gen_drums.c`, `tests/drum_test.c`; the generated `firmware/src/drum_tab.h`; `tools/cb931/` (CB-931's float drums, the reference and the kits' source) | Skipper (Cheesebox 931) |
+| The drums: `firmware/src/drum_core.h`, `drum_play.h`, `tools/gen_drums.c`, `tools/gen_styles.c`, `tests/drum_test.c`, `tests/seq_test.c`; the generated `firmware/src/drum_tab.h` and `drum_styles.h`; `tools/cb931/` (CB-931's float drums and rhythm player, the reference and the kits' and rhythms' source) | Skipper (Cheesebox 931) |
+| The 20 CR-78 rhythms' main A (in `drum_styles.h`): CW-78's transcription of the Roland CR-78 service notes | charlesvestal/schwung-cw-78 (GPL-3.0) |
 
 ## Third-party material
 
