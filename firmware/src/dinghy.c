@@ -19,7 +19,8 @@
  *   KNOB1..4    rhythm, tempo, drum level, vibrato/chorus type (V1 C1 V2 C2 V3 C3)
  *   SELECT      pick on the page    ALGORITHM  set it (MAIN: the drawbars; ORGAN, DRUMS: a list; EQ: bass, middle, treble)
  *   USB-MIDI    and the TRS MIDI IN jack: every channel plays the organ but 10 (the KeyLab's pads: silent); program change
- *               (setBfree's default.pgm); the KeyLab Essential mk3 on CB-931's User Program (kl_cc); setBfree's controllers
+ *               (setBfree's default.pgm); the KeyLab Essential mk3 on CB-931's User Program (kl_cc: knobs 1-9 the drawbars,
+ *               fader 1 volume, fader 2 drum level, the transport the drums); setBfree's controllers
  *               (CC 1, 7, 11, 30, 31, 64..66, 91, 92, 95, NRPN; the drawbars' 70..78, the percussion's 80..83 and the drive's 93
  *               give way to the KeyLab's)
  *
@@ -553,38 +554,65 @@ static void do_tap(void)                        /* the KeyLab's Tap: the tempo f
     pop_num(PGM_MAIN | PGM_DRUMS, "TEMPO", (int32_t)drp_bpm, 0, 0);
 }
 
-/* ---- the KeyLab Essential mk3 on its CB-931 User Program (CB-931-FM1.keylabessential3): the same controls as CB-931 on the FM-1.
- * Knobs (endless, Relative 2: 64 + n; two's complement read too): 1 volume, 2 SELECT, 3 PRESETS, 4 ALGORITHM, 5-8 K1-K4 (rhythm,
- * tempo, drum level, vibrato). Main encoder: turn PRESETS, click HOME. Fader 2: drum level, with pickup. Transport: Play start/stop,
- * Stop outro, Record intro/fill, Rewind A, Fast forward B, Tap tap tempo. Any channel. The other controllers it sends (pads CC 3,
- * faders 72..85) do nothing here; setBfree's drawbar, percussion and drive controllers (70..78, 80..83, 93) give way to it. */
-static int32_t kl_enc[8], kl_pre;               /* knob turns waiting for the main loop, by ENC id; PRESETS */
-static uint32_t kl_picked, kl_lastv = 255u, kl_lastset = 255u;   /* fader 2's pickup */
+/* ---- the KeyLab Essential mk3 on its CB-931 User Program (CB-931-FM1.keylabessential3), any channel.
+ * Knobs 1-9 (endless, Relative 2: 64 + n; two's complement read too): the nine drawbars, 16' .. 1', on every page (KL_DB_TICKS
+ * ticks a step, clockwise pulls out). Main encoder: turn PRESETS, click HOME. Fader 1: volume, fader 2: drum level (both with
+ * pickup: a fader takes over once it reaches or passes the value). Transport: Play start/stop, Stop outro, Record intro/fill,
+ * Rewind A, Fast forward B, Tap tap tempo. The other controllers it sends (pads CC 3, faders 3-9) do nothing here; setBfree's
+ * drawbar, percussion and drive controllers (70..78, 80..83, 93) give way to it. */
+#define KL_DB_TICKS 2                           /* knob ticks per drawbar step */
+static const uint8_t KL_DB_CC[NB] = {74, 71, 76, 77, 93, 18, 19, 16, 17};   /* knobs 1..9 */
+static int32_t kl_enc[8], kl_pre, kl_acc[NB];   /* turns waiting for the main loop, by ENC id (none from the KeyLab now); PRESETS; drawbar ticks */
+typedef struct { uint32_t picked, lastv, lastset; } kl_fader_t;
+static kl_fader_t kl_f1 = {0, 255u, 255u}, kl_f2 = {0, 255u, 255u};
 static int32_t kl_rel(uint32_t v)               /* as CB-931's relDelta */
 {
     int32_t x = (int32_t)v;
     return v == 0u || v == 64u ? 0 : v > 64u && v < 96u ? x - 64 : v >= 32u && v < 64u ? x - 64 : v < 32u ? x : x - 128;
 }
+static int kl_pick(kl_fader_t *f, uint32_t v, uint32_t want, uint32_t was, uint32_t cur)   /* 1: the fader has the value */
+{
+    if (cur != f->lastset) f->picked = 0;      /* first move, or the value was set elsewhere */
+    if (!f->picked) f->picked = want == cur || was == cur || (want < cur) != (was < cur);
+    f->lastv = v;
+    if (f->picked) f->lastset = want;
+    return (int)f->picked;
+}
 static uint32_t kl_lev(uint32_t v) { return (v * (DRP_LEVELS - 1u) + 63u) / 127u; }
+static uint32_t kl_vol(uint32_t v) { return (v * (uint32_t)(VOL_MAX - VOL_MIN) + 63u) / 127u; }   /* 0 = -48 dB */
+static void kl_bars(void)                       /* the drawbars as digits, for the pop-up: "888 000 000" */
+{
+    char t[12], *q = t;
+    uint32_t i;
+    for (i = 0; i < NB; i++) { *q++ = (char)('0' + P.db[i]); if (i == 2u || i == 5u) *q++ = ' '; }
+    *q = 0;
+    pop_if(PGM_MAIN, t, 0);
+}
 static int kl_cc(uint32_t cc, uint32_t v)       /* 1: the KeyLab's (taken) */
 {
+    uint32_t i;
+    for (i = 0; i < NB; i++)
+        if (cc == KL_DB_CC[i]) {
+            int32_t st;
+            kl_acc[i] += kl_rel(v);
+            st = kl_acc[i] / KL_DB_TICKS;
+            kl_acc[i] -= st * KL_DB_TICKS;
+            if (st) { P.db[i] = clampu((int32_t)P.db[i] + st, 8); sel0 = i; if (screen == PG_MAIN) pop_off(); kl_bars(); }
+            return 1;
+        }
     switch (cc) {
-    case 74: if (kl_rel(v)) { vol_set(vol_db + kl_rel(v)); pop_num(org_vis(OR_VOL), "VOLUME", vol_db, 1, " dB"); } return 1;
-    case 71: kl_enc[ENC_SELECT] += kl_rel(v); return 1;
-    case 76: case 114: kl_pre += kl_rel(v); return 1;
-    case 77: kl_enc[ENC_ALGORITHM] += kl_rel(v); return 1;
-    case 93: kl_enc[ENC_KNOB1] += kl_rel(v); return 1;
-    case 18: kl_enc[ENC_KNOB2] += kl_rel(v); return 1;
-    case 19: kl_enc[ENC_KNOB3] += kl_rel(v); return 1;
-    case 16: kl_enc[ENC_KNOB4] += kl_rel(v); return 1;
-    case 17: case 3: return 1;                  /* knob 9, the pads: nothing */
-    case 75: {                                  /* fader 2: the drums' level; it takes over once it reaches or passes the level */
-        uint32_t want = kl_lev(v), cur = drp_level, was = kl_lastv > 127u ? want : kl_lev(kl_lastv);
-        if (cur != kl_lastset) kl_picked = 0;   /* first move, or the level was set elsewhere (K3, the DRUMS page) */
-        if (!kl_picked) kl_picked = want == cur || (want < cur) != (was < cur) || was == cur;
-        kl_lastv = v;
-        if (!kl_picked) { popup("FADER 2", want < cur ? "UP" : "DOWN"); return 1; }
-        drp_level = want; kl_lastset = want;
+    case 114: kl_pre += kl_rel(v); return 1;    /* main encoder: PRESETS */
+    case 3: return 1;                           /* the pads: nothing */
+    case 73: {                                  /* fader 1: the volume */
+        uint32_t cur = (uint32_t)(vol_db - VOL_MIN), want = kl_vol(v), was = kl_f1.lastv > 127u ? want : kl_vol(kl_f1.lastv);
+        if (!kl_pick(&kl_f1, v, want, was, cur)) { popup("FADER 1", want < cur ? "UP" : "DOWN"); return 1; }
+        vol_set((int32_t)want + VOL_MIN);
+        pop_num(org_vis(OR_VOL), "VOLUME", vol_db, 1, " dB");
+        return 1; }
+    case 75: {                                  /* fader 2: the drums' level */
+        uint32_t cur = drp_level, want = kl_lev(v), was = kl_f2.lastv > 127u ? want : kl_lev(kl_f2.lastv);
+        if (!kl_pick(&kl_f2, v, want, was, cur)) { popup("FADER 2", want < cur ? "UP" : "DOWN"); return 1; }
+        drp_level = want;
         pop_level();
         return 1; }
     case 115: if (v >= 64u) do_page(); return 1;
@@ -595,7 +623,7 @@ static int kl_cc(uint32_t cc, uint32_t v)       /* 1: the KeyLab's (taken) */
     case 104: if (v >= 64u) drp_cmd(DRP_CMD_B); return 1;
     case 109: if (v >= 64u) do_tap(); return 1;
     case 102: case 105: return 1;               /* Loop, Metronome: free */
-    case 70: case 72: case 73: case 78: case 79: case 80: case 81: case 82: case 83: case 85: return 1;   /* the KeyLab's faders */
+    case 70: case 72: case 78: case 79: case 80: case 81: case 82: case 83: case 85: return 1;   /* faders 3-9 (and setBfree's drawbars) */
     default: return 0;
     }
 }
