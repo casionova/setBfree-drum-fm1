@@ -425,11 +425,12 @@ static void band_preset(void)
 #define H_POP 56
 static char pop_t[16];
 static uint32_t pop_until, pop_on, pop_drawn;
-static void popup(const char *a, const char *b)
+static void popup(const char *a, const char *b) /* a, a space and b, cut to fit pop_t (a program's name can be longer) */
 {
-    char *q = sp(pop_t, a);
-    if (b) q = sp(sp(q, " "), b);
-    *q = 0;
+    uint32_t i = 0;
+    while (*a && i < sizeof pop_t - 1u) pop_t[i++] = *a++;
+    if (b && i < sizeof pop_t - 1u) { pop_t[i++] = ' '; while (*b && i < sizeof pop_t - 1u) pop_t[i++] = *b++; }
+    pop_t[i] = 0;
     pop_on = 1; pop_drawn = 0; pop_until = fm1_ms + POP_MS;
 }
 static void popup_n(const char *a, int32_t v, int sign)
