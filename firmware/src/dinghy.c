@@ -13,8 +13,10 @@
  *
  *   keys        play the organ (key 0 = F3, OCT-/OCT+ shifts) on the manual REC chose    MASTER   volume (platform.c)
  *   SELECT      choose a drawbar    ALGORITHM  set it 0..8         PRESETS  setBfree's registrations (default.pgm)
- *               (pedal screen: after its two drawbars the equalizer's bass, middle, treble, -9..+9 dB in 0.5 dB steps)
- *   KNOB1       screen: upper, lower, pedal, test values    KNOB2   vibrato V1 C1 V2 C2 V3 C3    KNOB3   overdrive drive 0..20    KNOB4   reverb
+ *               (EQ screen: the equalizer's bass, middle, treble, -9..+9 dB in 0.5 dB steps; TEST screens: the drums' test rhythm,
+ *               PLAY starts it, SELECT the kit, ALGORITHM the pattern)
+ *   KNOB1       screen (B3+DRUM, big type): UPPER, LOWER, PEDAL, EQ, MORE, TEST 1, TEST 2
+ *               KNOB2   vibrato V1 C1 V2 C2 V3 C3    KNOB3   overdrive drive 0..20    KNOB4   reverb (a knob shows its value big for a moment)
  *   FX          vibrato on/off (upper on screen 1, lower on screen 2)    LFO    Leslie stop/slow/fast    SEL    overdrive on/off
  *   ENV         percussion on/off   ARP  2nd/3rd   SEQ  fast/slow   PLAY  soft/normal   (screen 1)     REC   keys: upper/lower/pedal
  *   EDIT, SAVE  free
@@ -41,12 +43,10 @@ static uint32_t fm1_ticks(void) { return 0; }
 #define C_ACC RGB(255, 190, 90)                 /* tungsten */
 #define C_OFF RGB(110, 110, 110)
 #define C_BAR RGB(230, 230, 230)
-static const char *const FOOT[NB] = {"16", "513", "8", "4", "223", "2", "135", "113", "1"};
 static const uint16_t BARC[NB] = {RGB(190, 120, 60), RGB(190, 120, 60), RGB(235, 235, 235), RGB(235, 235, 235),
                                   RGB(90, 90, 100), RGB(235, 235, 235), RGB(90, 90, 100), RGB(90, 90, 100),
                                   RGB(235, 235, 235)};
 #define C_TRK RGB(34, 34, 34)
-#define C_PCH RGB(44, 30, 18)                   /* the peach boxes of the sketch: vibrato and percussion */
 
 static char *sp(char *p, const char *s) { while (*s) *p++ = *s++; return p; }
 static char *su(char *p, uint32_t v)
@@ -82,17 +82,33 @@ static void draw_battery(uint32_t st)           /* st: bars 0 .. 4, bit 3 = a US
         lcd_fill(x + 3u + k * 5u, y + 4u, 4, 8, bars <= 1u ? C_RED : C_ACC);
 }
 
-/* ---- three screens: 1 upper, 2 lower, 3 pedal. Each is built from bands (a canvas of 240 x h, drawn and blitted on its own, and only when
- * what it shows has changed): the header, the three manual blocks, four rows of switches, the program. The block of the manual a screen is
- * for shows its drawbars as bars; the others show their values. */
-#define TRACK 44                                /* a drawbar: the track, the cap that hangs down as far as the value says */
-#define CAP 12
-#define STEP 4
-#define BLK_BARS 62                             /* the track, its footage row */
-#define Y_CTRL 142                              /* the switches start here, 18 apart, on every screen */
-static const char *const MAN[3] = {"UPPER", "LOWER", "PEDAL"};
+/* ---- B3+DRUM: the screens in big type (FONT_M, Terminus 24 px; pop-ups FONT_XL, 32 px). Seven screens, KNOB 1:
+ *   0 UPPER, 1 LOWER, 2 PEDAL   the manual's drawbars (a 24 px digit on each cap), three rows of switches, the program
+ *   3 EQ                        the output equalizer's bass, middle, treble (SELECT picks one, ALGORITHM sets it)
+ *   4 MORE                      keys, drive, reverb, octave, all three manuals' drawbars as digits
+ *   5 TEST 1, 6 TEST 2          the load figures, the limiters, MIDI; the drums' test rhythm (PLAY, SELECT, ALGORITHM)
+ * A knob (KNOB 2..4, PRESETS), the octave, the keys, and the Leslie or the overdrive off their screens, show what they set big
+ * for a moment (popup()). Each screen is built from bands (a canvas of 240 x h, at most 64 rows on the FM-1: taller bands are
+ * drawn in strips with cv_oy), drawn only when what they show has changed. */
+#define FM (&FONT_M)
+#define FW 12                                   /* FONT_M is 12 x 24, fixed */
+#define NSCREENS 7u
+#define SCR_EQ 3u
+#define SCR_MORE 4u
+#define SCR_TEST 5u                             /* and 6 */
+#define Y_HDR 0
+#define Y_BARS 28                               /* the drawbars (or the equalizer): 92 rows */
+#define H_BARS 92
+#define CAP 26                                  /* a drawbar's cap: the digit and a pixel round it */
+#define STEP 8                                  /* the cap goes down 8 px a step: 0..8 */
+#define TRACK (CAP + 8 * STEP)
+#define Y_CTRL 124                              /* three rows of switches, 28 apart */
+#define H_ROW 28
+#define Y_LIST 28                               /* MORE and TEST: rows of text, 26 apart */
+#define H_LIST 26
+#define Y_PRESET 212
 static const uint8_t PEDID[2] = {0, 2};         /* the pedal's drawbars sit in the columns of the 16' and the 8' */
-static uint32_t screen, sel[4];                 /* screen 0..2 are the manuals, 3 the test values */
+static uint32_t screen, sel[4];                 /* sel: the drawbar picked on screens 0..2, the equalizer's band on screen 3 */
 #ifdef DINGHY_HOST
 #define CORES() 2u
 #else
@@ -100,6 +116,7 @@ static uint32_t screen, sel[4];                 /* screen 0..2 are the manuals, 
 #endif
 static uint32_t load_peak, load_now, load_wheels, ld_org, ld_od, ld_rv, ld_le, ld_pk, ld_g, ld_go, ld_q, ld_dr, ld_dv;
 static uint32_t midi_ch, midi_kind, midi_cnt, midi_t, midi_d1;   /* the last message that came in: channel 1..16, kind 0 none 1 on 2 off 3 CC 4 PC 5 other */
+static int32_t scr_oct;                         /* the octave, for the screens (app_main's oct) */
 
 static uint32_t hmix(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 static uint32_t colx(uint32_t i) { return 3u + 26u * i; }
@@ -109,23 +126,11 @@ static void cv_box(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
 }
 static int32_t chip(int32_t x, int32_t y, const char *t, int on, int edit)     /* a switch: boxed, tungsten when it is on and this screen can set it */
 {
-    int32_t w = text_w(&FONT_S, t) + 6;
+    int32_t w = text_w(FM, t) + 8;
     uint16_t c = !edit ? C_OFF : on ? C_ACC : C_BAR;
-    cv_rect(x + 1, y + 1, w - 2, 15, C_BLACK);
-    cv_box(x, y, w, 17, edit ? (on ? C_ACC : C_OFF) : C_TRK);
-    cv_text(x + 3, y + 1, &FONT_S, t, c);
-    return x + w;
-}
-static int32_t oval(int32_t x, int32_t y, const char *t)                       /* a knob's value, in a pill */
-{
-    int32_t w = text_w(&FONT_S, t) + 10, i;
-    cv_rect(x + 4, y, w - 8, 1, C_ACC); cv_rect(x + 4, y + 16, w - 8, 1, C_ACC);
-    cv_rect(x, y + 4, 1, 9, C_ACC); cv_rect(x + w - 1, y + 4, 1, 9, C_ACC);
-    for (i = 0; i < 4; i++) {
-        cv_pset(x + 3 - i, y + 1 + i, C_ACC); cv_pset(x + w - 4 + i, y + 1 + i, C_ACC);
-        cv_pset(x + 3 - i, y + 15 - i, C_ACC); cv_pset(x + w - 4 + i, y + 15 - i, C_ACC);
-    }
-    cv_text(x + 5, y + 1, &FONT_S, t, C_BAR);
+    cv_rect(x + 1, y + 1, w - 2, 24, C_BLACK);
+    cv_box(x, y, w, 26, edit ? (on ? C_ACC : C_OFF) : C_TRK);
+    cv_text(x + 4, y + 1, FM, t, c);
     return x + w;
 }
 static void draw_bars(int32_t y0, const uint8_t *v, const uint8_t *ids, uint32_t cnt, uint32_t selected)
@@ -134,27 +139,17 @@ static void draw_bars(int32_t y0, const uint8_t *v, const uint8_t *ids, uint32_t
     for (k = 0; k < cnt; k++) {
         uint32_t i = ids ? ids[k] : k;
         int32_t x = (int32_t)colx(i), cy = y0 + (int32_t)v[k] * STEP;
-        char d[2] = {(char)('0' + v[k]), 0}, *f = (char *)FOOT[i];
-        cv_rect(x + 4, y0, 16, TRACK, C_TRK);
-        if (v[k]) cv_rect(x + 9, y0, 6, cy - y0, RGB(70, 70, 70));
-        cv_rect(x + 1, cy, 22, CAP, BARC[i]);
-        if (k == selected) cv_box(x, cy - 1, 24, CAP + 2, C_ACC);
-        cv_text(x + 8, cy - 2, &FONT_S, d, BARC[i] > RGB(150, 150, 150) ? C_BLACK : C_BAR);
-        cv_text(x + 13 - text_w(&FONT_S, f) / 2, y0 + TRACK + 2, &FONT_S, f, k == selected ? C_ACC : C_BAR);
-    }
-}
-static void draw_digits(int32_t y0, const uint8_t *v, const uint8_t *ids, uint32_t cnt)
-{
-    uint32_t k;
-    for (k = 0; k < cnt; k++) {
         char d[2] = {(char)('0' + v[k]), 0};
-        cv_text((int32_t)colx(ids ? ids[k] : k) + 8, y0, &FONT_S, d, C_OFF);
+        cv_rect(x + 7, y0, 10, TRACK, C_TRK);
+        if (v[k]) cv_rect(x + 9, y0, 6, cy - y0, RGB(70, 70, 70));
+        cv_rect(x, cy, 24, CAP, BARC[i]);
+        if (k == selected) { cv_box(x - 1, cy - 1, 26, CAP + 2, C_ACC); cv_box(x - 2, cy - 2, 28, CAP + 4, C_ACC); }
+        cv_text(x + 6, cy + 1, FM, d, BARC[i] > RGB(150, 150, 150) ? C_BLACK : C_BAR);
     }
 }
-/* the pedal screen's right side: the equalizer's three gains as sliders (up is more, the middle 0 dB), set like the drawbars */
-#define EQ_X0 120
-#define EQ_DX 42
-#define EQ_CAP 6                                /* 38 px of way for 37 steps */
+/* the equalizer: three sliders, up is more, the middle 0 dB */
+#define EQ_X(k) (28 + 72 * (int32_t)(k))
+#define EQ_CAP 10
 static const char *const EQN[3] = {"BASS", "MID", "TREB"};
 static void eq_label(char *t, uint32_t g)       /* gain index -> "+4.5", "-9", "0" */
 {
@@ -165,152 +160,177 @@ static void eq_label(char *t, uint32_t g)       /* gain index -> "+4.5", "-9", "
     if (a & 1u) { *t++ = '.'; *t++ = '5'; }
     *t = 0;
 }
-static void draw_eq(int32_t y0, uint32_t selected)   /* selected: 0..2, or none; the cap is half a drawbar's (no digit on it): more way */
+static void draw_eq(int32_t y0, uint32_t selected)
 {
     uint32_t k;
     for (k = 0; k < 3u; k++) {
-        int32_t x = EQ_X0 + EQ_DX * (int32_t)k, g = (int32_t)eq_p[2u * k], cy = y0 + (36 - g) * (TRACK - EQ_CAP) / 36, mid = y0 + (TRACK - EQ_CAP) / 2 + EQ_CAP / 2;
-        char t[6];
-        cv_rect(x + 4, y0, 16, TRACK, C_TRK);
-        cv_rect(x - 2, mid, 28, 1, C_OFF);                       /* 0 dB: wider than the cap, so it shows beside it */
-        if (cy + EQ_CAP / 2 < mid) cv_rect(x + 9, cy + EQ_CAP / 2, 6, mid - cy - EQ_CAP / 2, RGB(70, 70, 70));
-        else if (cy + EQ_CAP / 2 > mid) cv_rect(x + 9, mid + 1, 6, cy + EQ_CAP / 2 - mid, RGB(70, 70, 70));
-        cv_rect(x + 1, cy, 22, EQ_CAP, g == 18 ? RGB(120, 120, 120) : C_BAR);
-        if (k == selected) cv_box(x, cy - 1, 24, EQ_CAP + 2, C_ACC);
-        eq_label(t, (uint32_t)g);
-        cv_text(x + 12 - text_w(&FONT_S, t) / 2, y0 + TRACK + 2, &FONT_S, t, k == selected ? C_ACC : C_BAR);
+        int32_t x = EQ_X(k), g = (int32_t)eq_p[2u * k], way = H_BARS - 2 - EQ_CAP, cy = y0 + 1 + (36 - g) * way / 36,
+                mid = y0 + 1 + way / 2 + EQ_CAP / 2;
+        cv_rect(x + 15, y0, 10, H_BARS, C_TRK);
+        cv_rect(x - 4, mid, 48, 1, C_OFF);                       /* 0 dB: wider than the cap, so it shows beside it */
+        if (cy + EQ_CAP / 2 < mid) cv_rect(x + 17, cy + EQ_CAP / 2, 6, mid - cy - EQ_CAP / 2, RGB(70, 70, 70));
+        else if (cy + EQ_CAP / 2 > mid) cv_rect(x + 17, mid + 1, 6, cy + EQ_CAP / 2 - mid, RGB(70, 70, 70));
+        cv_rect(x, cy, 40, EQ_CAP, g == 18 ? RGB(120, 120, 120) : C_BAR);
+        if (k == selected) { cv_box(x - 1, cy - 1, 42, EQ_CAP + 2, C_ACC); cv_box(x - 2, cy - 2, 44, EQ_CAP + 4, C_ACC); }
     }
 }
-static uint32_t block_h(uint32_t scr, uint32_t m) { return (m ? 16u : 0u) + (m == scr ? BLK_BARS : 16u); }
-static uint32_t block_y(uint32_t scr, uint32_t m) { uint32_t y = 16, j; for (j = 0; j < m; j++) y += block_h(scr, j); return y; }
 
 static void band_header(uint32_t scr)
 {
-    char t[24];
-    cv_begin(240, 16, C_BLACK);
-    if (scr == 3u) cv_text(4, 0, &FONT_S, "TEST", C_ACC);
-    else cv_text(4, 0, &FONT_S, scr == 0 ? "UPPER" : "UPPER INFO", scr == 0 ? C_ACC : C_OFF);
-    sp(sp(t, "B3+DRUM v"), APP_VER)[0] = 0;
-    cv_text(238 - text_w(&FONT_S, t), 0, &FONT_S, t, C_OFF);
-    cv_blit(0, 0);
+    static const char *const NAME[NSCREENS] = {"UPPER", "LOWER", "PEDAL", "EQ", "MORE", "TEST 1", "TEST 2"};
+    char t[24], *q = t;
+    cv_begin(240, 26, C_BLACK);
+    cv_text(4, 1, FM, NAME[scr < NSCREENS ? scr : 0], C_ACC);
+    if (scr >= SCR_TEST) q = sp(sp(sp(q, DRM_KIT_NAME[drp_kit]), " "), DRP_PAT_NAME[drp_pat]);   /* the test rhythm's kit and pattern */
+    else if (scr_oct) { q = sp(q, "OCT "); *q++ = scr_oct > 0 ? '+' : '-'; *q++ = (char)('0' + (scr_oct > 0 ? scr_oct : -scr_oct)); }
+    *q = 0;
+    cv_text(236 - text_w(FM, t), 1, FM, t, scr >= SCR_TEST ? C_BAR : C_ACC);
+    cv_rect(0, 25, 240, 1, C_TRK);
+    cv_blit(0, Y_HDR);
 }
-static void band_block(uint32_t scr, uint32_t m)
+static void band_bars(uint32_t scr)             /* screens 0..2: the manual's drawbars; screen 3: the equalizer. In strips. */
 {
-    uint32_t act = m == scr, y = block_y(scr, m);
-    const uint8_t *v = m == 0 ? (const uint8_t *)P.db : m == 1 ? (const uint8_t *)P.dbl : (const uint8_t *)P.dbp;
-    uint32_t cnt = m == 2 ? 2u : NB;
-    if (m) {                                    /* the manual's name: its own strip (the canvas holds 64 rows on the FM-1: */
-        cv_begin(240, 16, C_BLACK);             /* name and bars together, 78, lost the footage row) */
-        cv_text(4, 0, &FONT_S, MAN[m], act ? C_ACC : C_OFF);
-        if (!act) cv_text(4 + 8 * 6, 0, &FONT_S, "INFO", C_OFF);
-        if (act && m == 2u) {                   /* the equalizer's names over its sliders */
-            uint32_t k;
-            for (k = 0; k < 3u; k++)
-                cv_text(EQ_X0 + EQ_DX * (int32_t)k + 12 - text_w(&FONT_S, EQN[k]) / 2, 0, &FONT_S, EQN[k], sel[2] == 2u + k ? C_ACC : C_OFF);
-        }
-        cv_blit(0, y);
-        y += 16u;
+    uint32_t o;
+    const uint8_t *v = scr == 0 ? (const uint8_t *)P.db : scr == 1 ? (const uint8_t *)P.dbl : (const uint8_t *)P.dbp;
+    for (o = 0; o < H_BARS; o += 46u) {
+        cv_begin(240, 46, C_BLACK);
+        cv_oy = -(int32_t)o;
+        if (scr == SCR_EQ) draw_eq(0, sel[3]);
+        else draw_bars(1, v, scr == 2 ? PEDID : 0, scr == 2 ? 2u : NB, sel[scr]);
+        cv_oy = 0;
+        cv_blit(0, Y_BARS + o);
     }
-    cv_begin(240, act ? BLK_BARS : 16u, C_BLACK);
-    if (act) {
-        draw_bars(1, v, m == 2 ? PEDID : 0, cnt, sel[m]);
-        if (m == 2u) draw_eq(1, sel[2] >= 2u ? sel[2] - 2u : 9u);
-    } else draw_digits(0, v, m == 2 ? PEDID : 0, cnt);   /* (0.6 drew these over the active manual's bars too) */
-    cv_blit(0, y);
 }
 static const char *const VIB[6] = {"V1", "C1", "V2", "C2", "V3", "C3"};
 static const char *const LES[3] = {"STOP", "SLOW", "FAST"};
 static const char *const KEYN[3] = {"UPPER", "LOWER", "PEDAL"};
-/* ---- screen 4: the test values, one row each */
-#define TEST_ROWS 11
-static uint32_t test_vals(uint32_t r, uint32_t *a, uint32_t *b)    /* what row r shows; the return value says whether it is a warning */
+static void band_ctrl(uint32_t scr, uint32_t r)  /* the switches under the drawbars (screens 0..2), the equalizer's names and gains (3) */
 {
+    int32_t x;
+    char t[24], *q;
+    cv_begin(240, H_ROW, C_BLACK);
+    if (scr == SCR_EQ) {
+        uint32_t k;
+        for (k = 0; k < 3u; k++) {              /* row 0 the names, row 1 the gains (dB) */
+            if (r == 0) { q = sp(t, EQN[k]); *q = 0; } else eq_label(t, eq_p[2u * k]);
+            cv_text(EQ_X(k) + 20 - text_w(FM, t) / 2, 1, FM, t, sel[3] == k ? C_ACC : (r ? C_BAR : C_OFF));
+        }
+    } else if (r == 0) {                        /* vibrato / chorus: the type (KNOB 2) and where it is on (FX) */
+        x = chip(0, 0, VIB[P.vtype % 6u], 1, 1) + 6;
+        x = chip(x, 0, P.vup ? "UP ON" : "UP OFF", P.vup, scr == 0) + 6;
+        chip(x, 0, P.vlo ? "LO ON" : "LO OFF", P.vlo, scr == 1);
+    } else if (r == 1) {                        /* percussion belongs to the upper manual: set on screen 1, shown on the others */
+        int pe = scr == 0;
+        x = chip(0, 0, "PERC", P.perc, pe) + 4;
+        x = chip(x, 0, P.perc3 ? "3RD" : "2ND", P.perc, pe) + 4;
+        x = chip(x, 0, P.fast ? "FAST" : "SLOW", P.perc, pe) + 4;
+        chip(x, 0, P.soft ? "SOFT" : "NORM", P.perc, pe);
+    } else {
+        q = sp(sp(t, "LES "), LES[P.les % 3u]); *q = 0;
+        x = chip(0, 0, t, P.les != 0, 1) + 6;
+        chip(x, 0, P.od ? "OD ON" : "OD OFF", P.od, 1);
+    }
+    cv_blit(0, Y_CTRL + H_ROW * r);
+}
+
+/* ---- rows of text: MORE (7) and the two TEST screens (8 each) */
+#define MORE_ROWS 7u
+#define TEST_ROWS 8u
+static uint32_t list_rows(uint32_t scr) { return scr == SCR_MORE ? MORE_ROWS : TEST_ROWS; }
+static uint32_t list_vals(uint32_t scr, uint32_t r, uint32_t *a, uint32_t *b)   /* what row r shows; returns 1 for a warning */
+{
+    uint32_t i;
     *a = *b = 0;
-    switch (r) {
-    case 0: *a = load_now; *b = load_peak; return 0;
-    case 1: *a = ld_org; *b = load_wheels; return 0;
-    case 2: *a = ld_od; *b = ld_rv; return 0;
-    case 3: *a = ld_le; *b = CORES(); return CORES() != 2u;
-    case 4: *a = ld_pk; return ld_pk > 100u;
-    case 5: *a = ld_g; return ld_g < 100u;
-    case 6: *a = ld_q; return ld_q > 100u;
-    case 7: *a = ld_go; return ld_go < 100u;
-    case 8: *a = midi_ch * 16u + midi_kind; *b = midi_cnt; return 0;
-    case 10: *a = drp_on ? ld_dr : 0u; *b = (drp_on ? 1u : 0u) | ld_dv << 1 | drp_kit << 8 | drp_pat << 16; return 0;   /* B3+DRUM */
+    if (scr == SCR_MORE) {
+        switch (r) {
+        case 0: *a = P.keys; break;
+        case 1: *a = P.drv; break;
+        case 2: *a = P.rev; break;
+        case 3: *a = (uint32_t)(scr_oct + 8); break;
+        case 4: for (i = 0; i < NB; i++) *a = *a * 9u + P.db[i]; break;
+        case 5: for (i = 0; i < NB; i++) *a = *a * 9u + P.dbl[i]; break;
+        default: *a = P.dbp[0] * 9u + P.dbp[1]; break;
+        }
+        return 0;
+    }
+    switch ((scr - SCR_TEST) * TEST_ROWS + r) {
+    case 0: *a = load_now; return 0;
+    case 1: *a = load_peak; return 0;
+    case 2: *a = ld_org; return 0;
+    case 3: *a = ld_od; return 0;
+    case 4: *a = ld_rv; return 0;
+    case 5: *a = ld_le; return 0;
+    case 6: *a = drp_on ? ld_dr : 0u; *b = drp_on; return 0;
+    case 7: *a = ld_dv; *b = drp_on; return 0;
+    case 8: *a = load_wheels; return 0;
+    case 9: *a = CORES(); return CORES() != 2u;
+    case 10: *a = ld_pk; return ld_pk > 100u;
+    case 11: *a = ld_g; return ld_g < 100u;
+    case 12: *a = ld_q; return ld_q > 100u;
+    case 13: *a = ld_go; return ld_go < 100u;
+    case 14: *a = midi_ch * 16u + midi_kind; *b = midi_d1; return 0;
 #if FELUCCA_UART
-    case 9: *a = um.drops + um.resync; *b = um.bytes; return um.drops + um.resync != 0u;
+    case 15: *a = um.drops + um.resync; return um.drops + um.resync != 0u;
 #endif
     }
     return 0;
 }
-static void band_test(uint32_t r)
+static char *digits9(char *q, const volatile uint8_t *v, uint32_t n)
 {
-    char t[40], *q;
-    uint32_t a, b, warn = test_vals(r, &a, &b);
+    uint32_t i;
+    for (i = 0; i < n; i++) { *q++ = (char)('0' + v[i]); if (n == NB && (i == 2u || i == 5u)) *q++ = ' '; }
+    return q;
+}
+static void band_list(uint32_t scr, uint32_t r)
+{
+    char t[40], *q = t;
+    uint32_t a, b, warn = list_vals(scr, r, &a, &b);
     uint16_t c = warn ? C_ACC : C_BAR;
-    cv_begin(240, 18, C_BLACK);
-    switch (r) {
-    case 0: q = su(sp(su(sp(t, "LOAD "), a), " us   PEAK "), b); sp(q, " us")[0] = 0; break;
-    case 1: q = su(sp(su(sp(t, "ORGAN "), a), " us   WHEELS "), b); *q = 0; break;
-    case 2: q = su(sp(su(sp(t, "PREAMP "), a), " us   REVERB "), b); sp(q, " us")[0] = 0; break;
-    case 3: q = su(sp(su(sp(t, "LESLIE "), a), " us   CORES "), b); *q = 0; break;
-    case 4: q = su(sp(t, "SUM OF THE WHEELS "), a > 999u ? 999u : a); sp(q, " %")[0] = 0; break;
-    case 5: q = su(sp(t, "SUM LIMITER GAIN "), a); sp(q, " %")[0] = 0; break;
-    case 6: q = su(sp(t, "OUTPUT PEAK "), a > 999u ? 999u : a); sp(q, " %")[0] = 0; break;
-    case 7: q = su(sp(t, "OUTPUT LIMITER GAIN "), a); sp(q, " %")[0] = 0; break;
-    case 8: {
-        static const char *const KN[6] = {"--", "NOTE ON", "NOTE OFF", "CC", "PC", "OTHER"};
-        q = a & 15u ? sp(su(sp(t, "MIDI CH "), a >> 4), "  ") : sp(t, "MIDI -  ");
-        q = sp(q, KN[(a & 15u) < 6u ? a & 15u : 5u]);
-        if ((a & 15u) == 3u || (a & 15u) == 4u) q = su(sp(q, " "), midi_d1);
-        q = su(sp(q, "   COUNT "), b % 10000u); *q = 0;
-        break; }
-    case 10:                                    /* B3+DRUM: the test rhythm (PLAY, SELECT kit, ALGORITHM pattern) */
-        if (b & 1u) q = su(sp(su(sp(t, "DRUMS "), a), " V"), (b >> 1) & 127u);   /* us, voices (short: the battery sits at the end) */
-        else q = sp(t, "DRUMS OFF");
-        q = sp(sp(sp(sp(q, " "), DRM_KIT_NAME[(b >> 8) & 255u]), " "), DRP_PAT_NAME[(b >> 16) & 255u]); *q = 0;
-        break;
-    default: q = su(sp(su(sp(t, "MIDI ERRORS "), a > 99u ? 99u : a), "  BYTES "), b); *q = 0; break;
-    }
-    cv_text(4, 2, &FONT_S, t, c);
-    cv_blit(0, 22u + 19u * r);                  /* (B3+DRUM: 11 rows, a pixel closer than 0.7's 10) */
-}
-static void band_ctrl(uint32_t scr, uint32_t r)
-{
-    int32_t x;
-    char t[24], *q;
-    cv_begin(240, 18, C_BLACK);
-    if (r == 0) {                               /* vibrato / chorus: the type (KNOB 2) and where it is on (FX) */
-        cv_rect(0, 0, 240, 17, C_PCH);
-        x = cv_text(4, 1, &FONT_S, "V/C", C_ACC) + 4;
-        x = oval(x, 0, VIB[P.vtype % 6u]) + 6;
-        x = chip(x, 0, P.vup ? "UP ON" : "UP OFF", P.vup, scr == 0) + 4;
-        chip(x, 0, P.vlo ? "LO ON" : "LO OFF", P.vlo, scr == 1);
-    } else if (r == 1) {                        /* percussion belongs to the upper manual: set on screen 1, shown on the others */
-        int pe = scr == 0;
-        cv_rect(0, 0, 240, 17, C_PCH);
-        x = cv_text(4, 1, &FONT_S, "PERC", pe ? C_ACC : C_OFF) + 4;
-        x = chip(x, 0, P.perc ? "ON" : "OFF", P.perc, pe) + 3;
-        x = chip(x, 0, P.perc3 ? "3RD" : "2ND", P.perc, pe) + 3;
-        x = chip(x, 0, P.fast ? "FAST" : "SLOW", P.perc, pe) + 3;
-        chip(x, 0, P.soft ? "SOFT" : "NORM", P.perc, pe);
-    } else if (r == 2) {
-        q = sp(sp(t, "LES "), LES[P.les % 3u]); *q = 0;
-        x = chip(1, 0, t, 1, 1) + 4;
-        q = sp(t, P.od ? "OD ON" : "OD OFF"); *q = 0;
-        x = chip(x, 0, t, P.od, 1) + 4;
-        q = sp(sp(t, "KEYS "), KEYN[P.keys % 3u]); *q = 0;
-        chip(x, 0, t, 1, 1);
+    cv_begin(240, H_LIST, C_BLACK);
+    if (scr == SCR_MORE) {
+        static const char *const LAB[MORE_ROWS] = {"KEYS", "DRIVE", "REVERB", "OCTAVE", "UP", "LO", "PD"};
+        cv_text(4, 1, FM, LAB[r], C_OFF);
+        switch (r) {
+        case 0: q = sp(q, KEYN[P.keys % 3u]); break;
+        case 1: q = su(q, P.drv); break;
+        case 2: q = su(q, P.rev); break;
+        case 3: if (scr_oct) *q++ = scr_oct > 0 ? '+' : '-'; *q++ = (char)('0' + (scr_oct > 0 ? scr_oct : -scr_oct)); break;
+        case 4: q = digits9(q, P.db, NB); break;
+        case 5: q = digits9(q, P.dbl, NB); break;
+        default: q = digits9(q, P.dbp, 2u); break;
+        }
+        *q = 0;
+        cv_text(r >= 4u ? 4 + 4 * FW : 4 + 7 * FW, 1, FM, t, C_ACC);
     } else {
-        x = cv_text(4, 1, &FONT_S, "DRIVE", C_BAR) + 3;
-        q = su(t, P.drv); *q = 0;
-        x = oval(x, 0, t) + 8;
-        x = cv_text(x, 1, &FONT_S, "REVERB", C_BAR) + 3;
-        q = su(t, P.rev); *q = 0;
-        oval(x, 0, t);
+        switch ((scr - SCR_TEST) * TEST_ROWS + r) {
+        case 0: q = sp(su(sp(q, "LOAD "), a), " us"); break;
+        case 1: q = sp(su(sp(q, "PEAK "), a), " us"); break;
+        case 2: q = sp(su(sp(q, "ORGAN "), a), " us"); break;
+        case 3: q = sp(su(sp(q, "PREAMP "), a), " us"); break;
+        case 4: q = sp(su(sp(q, "REVERB "), a), " us"); break;
+        case 5: q = sp(su(sp(q, "LESLIE "), a), " us"); break;
+        case 6: q = b ? sp(su(sp(q, "DRUMS "), a), " us") : sp(q, "DRUMS OFF (PLAY)"); break;
+        case 7: q = b ? su(sp(q, "VOICES "), a) : sp(q, "VOICES -"); break;
+        case 8: q = su(sp(q, "WHEELS "), a); break;
+        case 9: q = su(sp(q, "CORES "), a); break;
+        case 10: q = sp(su(sp(q, "WHEEL SUM "), a > 999u ? 999u : a), " %"); break;
+        case 11: q = sp(su(sp(q, "SUM LIMIT "), a), " %"); break;
+        case 12: q = sp(su(sp(q, "OUT PEAK "), a > 999u ? 999u : a), " %"); break;
+        case 13: q = sp(su(sp(q, "OUT LIMIT "), a), " %"); break;
+        case 14: {
+            static const char *const KN[6] = {"--", "ON", "OFF", "CC", "PC", "OTHER"};
+            q = a & 15u ? sp(su(sp(q, "MIDI "), a >> 4), " ") : sp(q, "MIDI - ");
+            q = sp(q, KN[(a & 15u) < 6u ? a & 15u : 5u]);
+            if ((a & 15u) == 3u || (a & 15u) == 4u || (a & 15u) == 1u) q = su(sp(q, " "), b);
+            break; }
+        default: q = su(sp(q, "MIDI ERRORS "), a > 99u ? 99u : a); break;
+        }
+        *q = 0;
+        cv_text(4, 1, FM, t, c);
     }
-    cv_blit(0, Y_CTRL + 18u * r);
+    cv_blit(0, Y_LIST + H_LIST * r);
 }
+
 /* ---- the logo: at the start, and again after LOGO_IDLE_MS without a key, a knob or a button (a screen saver) */
 #define LOGO_IDLE_MS 60000u
 static void draw_logo(void)                     /* in strips as high as the canvas holds (CV_MAX: 64 rows on the FM-1, more on the PC) */
@@ -328,7 +348,7 @@ static void draw_logo(void)                     /* in strips as high as the canv
             }
             for (; left && p < n; left--) cv_px[p++] = swap16(LOGO_PAL[c]);
         }
-        if (r0 == 0) cv_text(6, 4, &FONT_S, "v" APP_VER, RGB(150, 128, 104));
+        if (r0 == 0) cv_text(6, 4, FM, "v" APP_VER, RGB(150, 128, 104));
         cv_blit(0, r0);
     }
 }
@@ -338,8 +358,41 @@ static void band_preset(void)
     char s[40], *p = s;
     if (P.pgm && pgm_name(P.pgm)) { p = su(p, P.pgm); p = sp(p, " "); p = sp(p, pgm_name(P.pgm)); }
     *p = 0;
-    while (p > s && text_w(&FONT_S, s) > 206) *--p = 0;     /* the corner is the battery's */
-    draw_text_box(0, 222, 208, &FONT_S, s, C_ACC, 0);
+    while (p > s && text_w(FM, s) > 206) *--p = 0;     /* the corner is the battery's */
+    draw_text_box(0, Y_PRESET, 208, FM, s, C_ACC, 0);
+}
+
+/* ---- the pop-up: what a knob or a button set, big, for a moment, over the drawbars' place (every screen redraws it after) */
+#define POP_MS 1500u
+#define Y_POP 40
+#define H_POP 56
+static char pop_t[16];
+static uint32_t pop_until, pop_on, pop_drawn;
+static void popup(const char *a, const char *b)
+{
+    char *q = sp(pop_t, a);
+    if (b) q = sp(sp(q, " "), b);
+    *q = 0;
+    pop_on = 1; pop_drawn = 0; pop_until = fm1_ms + POP_MS;
+}
+static void popup_n(const char *a, int32_t v, int sign)
+{
+    char t[8], *q = t;
+    if (v < 0) { *q++ = '-'; v = -v; } else if (sign && v > 0) *q++ = '+';
+    q = su(q, (uint32_t)v); *q = 0;
+    popup(a, t);
+}
+static void draw_popup(void)
+{
+    char t[16];
+    uint32_t i;
+    for (i = 0; pop_t[i] && i < 13u; i++) t[i] = pop_t[i];   /* 13 x 16 px fits the box */
+    t[i] = 0;
+    cv_begin(240, H_POP, C_BLACK);
+    cv_box(6, 0, 228, H_POP, C_ACC);
+    cv_box(7, 1, 226, H_POP - 2, C_ACC);
+    cv_text(120 - text_w(&FONT_XL, t) / 2, (H_POP - 32) / 2, &FONT_XL, t, C_ACC);
+    cv_blit(0, Y_POP);
 }
 
 static uint32_t state_key(int32_t oct, uint32_t *status)   /* what is worth saving; *status: what the screen shows */
@@ -646,7 +699,7 @@ static void app_main(void)
 
     for (i = 0; i < NW; i++) { seed = seed * 1664525u + 1013904223u; wph[i] = seed; }   /* the wheels start anywhere */
     for (i = 0; i < NKEYS; i++) { held[i] = 255; heldm[i] = 0; }
-    sel[0] = sel[1] = 2; sel[2] = 0;
+    sel[0] = sel[1] = 2; sel[2] = 0; sel[3] = 0;
 #if BOARD_SMK37
     smk_pad_events = 1;                         /* the pads are ours (events), not white keys */
 #endif
@@ -710,31 +763,32 @@ static void app_main(void)
             for (k = 0; k < FM1_NENC; k++) if (fm1_enc_take(k) != 0) any = 1;
             if (any) { logo_on = 0; logo_drawn = 0; screen = 0; drawn_screen = 99; t_input = fm1_ms; b = 0; }
         } else if (fm1_ms - t_input > LOGO_IDLE_MS) { logo_on = 1; logo_drawn = 0; }
-        if (b & (1u << BTN_OCT_DOWN) && oct > -2) { oct--; dirty = 1; t_change = fm1_ms; }
-        if (b & (1u << BTN_OCT_UP) && oct < 2) { oct++; dirty = 1; t_change = fm1_ms; }
+        if (b & (1u << BTN_OCT_DOWN) && oct > -2) { oct--; dirty = 1; t_change = fm1_ms; popup_n("OCTAVE", oct, 1); }
+        if (b & (1u << BTN_OCT_UP) && oct < 2) { oct++; dirty = 1; t_change = fm1_ms; popup_n("OCTAVE", oct, 1); }
         if (b & (1u << BTN_FX)) { if (screen == 0) P.vup ^= 1u; else if (screen == 1) P.vlo ^= 1u; }   /* vibrato / chorus on the manual of the screen */
-        if (b & (1u << BTN_LFO)) P.les = (uint8_t)((P.les + 1u) % 3u);   /* Leslie: stop, slow, fast */
-        if (b & (1u << BTN_SEL)) P.od ^= 1u;                    /* overdrive on / off */
-        if (b & (1u << BTN_REC)) P.keys = (uint8_t)((P.keys + 1u) % 3u);   /* the FM-1's own keys: upper, lower, pedal */
+        if (b & (1u << BTN_LFO)) { P.les = (uint8_t)((P.les + 1u) % 3u); if (screen > 2u) popup("LES", LES[P.les % 3u]); }   /* Leslie: stop, slow, fast */
+        if (b & (1u << BTN_SEL)) { P.od ^= 1u; if (screen > 2u) popup("OD", P.od ? "ON" : "OFF"); }   /* overdrive on / off */
+        if (b & (1u << BTN_REC)) { P.keys = (uint8_t)((P.keys + 1u) % 3u); popup("KEYS", KEYN[P.keys % 3u]); }   /* the FM-1's own keys: upper, lower, pedal */
         if (screen == 0) {                      /* percussion is the upper manual's */
             if (b & (1u << BTN_ENV)) P.perc ^= 1u;
             if (b & (1u << BTN_ARP)) P.perc3 ^= 1u;
             if (b & (1u << BTN_SEQ)) P.fast ^= 1u;
             if (b & (1u << BTN_PLAY)) P.soft ^= 1u;
         }
-        if (screen == 3u && (b & (1u << BTN_PLAY))) drp_on ^= 1u;   /* B3+DRUM: the test rhythm */
+        if (screen >= SCR_TEST && (b & (1u << BTN_PLAY))) drp_on ^= 1u;   /* B3+DRUM: the test rhythm */
 
 #define enc_in(id) (t_enc = fm1_enc_take(id), t_enc ? (t_input = fm1_ms, t_enc) : 0)
-        if ((e = enc_in(ENC_KNOB1)) != 0) screen = clampu((int32_t)screen + e, 3);
+        if ((e = enc_in(ENC_KNOB1)) != 0) screen = clampu((int32_t)screen + e, (int32_t)NSCREENS - 1);
         if ((e = enc_in(ENC_SELECT)) != 0) {
-            if (screen < 3u) sel[screen] = clampu((int32_t)sel[screen] + e, screen == 2 ? 4 : 8);
-            else drp_kit = clampu((int32_t)drp_kit + e, (int32_t)DRM_KITS - 1);   /* B3+DRUM: the test rhythm's kit */
+            if (screen < 3u) sel[screen] = clampu((int32_t)sel[screen] + e, screen == 2 ? 1 : 8);
+            else if (screen == SCR_EQ) sel[3] = clampu((int32_t)sel[3] + e, 2);
+            else if (screen >= SCR_TEST) drp_kit = clampu((int32_t)drp_kit + e, (int32_t)DRM_KITS - 1);   /* B3+DRUM: the test rhythm's kit */
         }
-        if ((e = enc_in(ENC_ALGORITHM)) != 0 && screen == 3u) drp_pat = clampu((int32_t)drp_pat + e, (int32_t)DRP_NPAT - 1);   /* B3+DRUM */
-        else if (e != 0 && screen == 2u && sel[2] >= 2u) {   /* the equalizer: 0.5 dB a step */
+        if ((e = enc_in(ENC_ALGORITHM)) != 0 && screen >= SCR_TEST) drp_pat = clampu((int32_t)drp_pat + e, (int32_t)DRP_NPAT - 1);   /* B3+DRUM */
+        else if (e != 0 && screen == SCR_EQ) {  /* the equalizer: 0.5 dB a step */
             uint16_t ep[EQ_NP];
             for (k = 0; k < EQ_NP; k++) ep[k] = eq_p[k];
-            ep[2u * (sel[2] - 2u)] = (uint16_t)clampu((int32_t)ep[2u * (sel[2] - 2u)] + e, 36);
+            ep[2u * sel[3]] = (uint16_t)clampu((int32_t)ep[2u * sel[3]] + e, 36);
             eq_set(ep);
         } else if (e != 0 && screen < 3u) {
             volatile uint8_t *db = screen == 0 ? P.db : screen == 1 ? P.dbl : P.dbp;
@@ -757,10 +811,11 @@ static void app_main(void)
             for (; e > 0; e--) n = pgm_step(n, 1);
             for (; e < 0; e++) n = pgm_step(n, -1);
             organ_program(n);
+            { char pt[8]; su(pt, n)[0] = 0; popup(pt, pgm_name(n) ? pgm_name(n) : ""); }
         }
 #endif
-        if ((e = enc_in(ENC_KNOB2)) != 0) P.vtype = clampu((int32_t)P.vtype + e, 5);
-        if ((e = enc_in(ENC_KNOB3)) != 0) P.drv = clampu((int32_t)P.drv + e, OD_DRIVE_MAX);
+        if ((e = enc_in(ENC_KNOB2)) != 0) { P.vtype = clampu((int32_t)P.vtype + e, 5); popup("V/C", VIB[P.vtype % 6u]); }
+        if ((e = enc_in(ENC_KNOB3)) != 0) { P.drv = clampu((int32_t)P.drv + e, OD_DRIVE_MAX); popup_n("DRIVE", P.drv, 0); }
         if ((e = enc_in(ENC_KNOB4)) != 0) {               /* reverb mix, like CC 91: a doubling a step, fine at the bottom */
             static const uint8_t REVS[9] = {0, 1, 2, 4, 8, 16, 32, 64, 127};
             int32_t j = 0;
@@ -768,6 +823,7 @@ static void app_main(void)
             if (REVS[j] < P.rev && e < 0) e++;                              /* between two steps: down lands on the one below, up on the next */
             j += e;
             P.rev = REVS[clampu(j, 8)];
+            popup_n("REVERB", P.rev, 0);
         }
 
         if (midi_in_overflow) {                 /* a message was lost (queue full): its note off may have been it, so release the MIDI notes */
@@ -803,7 +859,7 @@ static void app_main(void)
         fm1_led_key(BTN_SEL, P.od != 0);
         fm1_led_key(BTN_ARP, P.perc3 != 0);
         fm1_led_key(BTN_SEQ, P.fast != 0);
-        fm1_led_key(BTN_PLAY, screen == 3u ? drp_on != 0 : P.soft != 0);
+        fm1_led_key(BTN_PLAY, screen >= SCR_TEST ? drp_on != 0 : P.soft != 0);
         fm1_led_key(BTN_REC, P.keys != 0);
 
         if (fm1_ms - t_load > 500u) {           /* how close to the 5800 us a block has: the number to watch */
@@ -823,38 +879,45 @@ static void app_main(void)
             for (i = 0; i < 22u; i++) hash[i] = 0xFFFFFFFFu;
             drawn_batt = ~0u;
         }
-        if (!logo_on) {
-            uint32_t h, m, r;
-            h = hmix(0, screen);
-            if (h != hash[0]) { hash[0] = h; band_header(screen); }
-            if (screen == 3u) {                 /* the test values: a row is drawn again when its numbers change */
-                for (r = 0; r < TEST_ROWS; r++) {
-                    uint32_t va, vb;
-                    test_vals(r, &va, &vb);
-                    h = hmix(hmix(hmix(9, r), va), vb);
-                    if (h != hash[9u + r]) { hash[9u + r] = h; band_test(r); }
+        scr_oct = oct;
+        if (!logo_on) {                         /* each band again when what it shows has changed */
+            uint32_t h, r, n, drew = 0;
+            h = hmix(hmix(hmix(hmix(0, screen), (uint32_t)(oct + 8)), drp_kit), drp_pat);
+            if (h != hash[0]) { hash[0] = h; band_header(screen); drew = 1; }
+            if (screen <= SCR_EQ) {
+                h = hmix(1, screen);
+                if (screen == SCR_EQ) { for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]); h = hmix(h, sel[3]); }
+                else {
+                    const volatile uint8_t *v = screen == 0 ? P.db : screen == 1 ? P.dbl : P.dbp;
+                    for (i = 0; i < (screen == 2u ? 2u : NB); i++) h = hmix(h, v[i]);
+                    h = hmix(h, sel[screen]);
+                }
+                if (h != hash[1]) { hash[1] = h; band_bars(screen); drew = 1; }
+                n = screen == SCR_EQ ? 2u : 3u;
+                for (r = 0; r < n; r++) {
+                    h = hmix(hmix(2, screen), r);
+                    if (screen == SCR_EQ) { for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]); h = hmix(h, sel[3]); }
+                    else if (r == 0) h = hmix(hmix(hmix(h, P.vtype), P.vup), P.vlo);
+                    else if (r == 1) h = hmix(hmix(hmix(hmix(h, P.perc), P.perc3), P.fast), P.soft);
+                    else h = hmix(hmix(h, P.les), P.od);
+                    if (h != hash[4 + r]) { hash[4 + r] = h; band_ctrl(screen, r); drew = 1; }
                 }
             } else {
-                for (m = 0; m < 3u; m++) {
-                    const volatile uint8_t *v = m == 0 ? P.db : m == 1 ? P.dbl : P.dbp;
-                    uint32_t cnt = m == 2u ? 2u : NB;
-                    h = hmix(hmix(1, screen), m);
-                    for (i = 0; i < cnt; i++) h = hmix(h, v[i]);
-                    h = hmix(h, sel[m]);
-                    if (m == 2u) for (i = 0; i < 3u; i++) h = hmix(h, eq_p[2u * i]);
-                    if (h != hash[1 + m]) { hash[1 + m] = h; band_block(screen, m); }
+                n = list_rows(screen);
+                for (r = 0; r < n; r++) {
+                    uint32_t va, vb;
+                    list_vals(screen, r, &va, &vb);
+                    h = hmix(hmix(hmix(hmix(9, screen), r), va), vb);
+                    if (h != hash[9u + r]) { hash[9u + r] = h; band_list(screen, r); drew = 1; }
                 }
-                for (r = 0; r < 4u; r++) {
-                    h = hmix(2, screen);
-                    if (r == 0) h = hmix(hmix(hmix(h, P.vtype), P.vup), P.vlo);
-                    else if (r == 1) h = hmix(hmix(hmix(hmix(h, P.perc), P.perc3), P.fast), P.soft);
-                    else if (r == 2) h = hmix(hmix(hmix(h, P.les), P.od), P.keys);
-                    else h = hmix(hmix(h, P.drv), P.rev);
-                    h = hmix(h, r);
-                    if (h != hash[4 + r]) { hash[4 + r] = h; band_ctrl(screen, r); }
-                }
+            }
+            if (screen <= SCR_MORE) {
                 h = hmix(hmix(3, P.pgm), up_gen);
                 if (h != hash[8]) { hash[8] = h; band_preset(); }
+            }
+            if (pop_on) {                       /* the pop-up: over the drawbars' place; when it is over, every band again */
+                if ((int32_t)(fm1_ms - pop_until) >= 0) { pop_on = 0; for (i = 0; i < 22u; i++) hash[i] = 0xFFFFFFFFu; }
+                else if (!pop_drawn || drew) { draw_popup(); pop_drawn = 1; }
             }
         }
         {

@@ -13,6 +13,7 @@ typedef struct {               /* proportional, see tools/gen_font.py */
     const uint8_t *data;
 } felucca_font_t;
 #include "felucca_font.h"
+#include "font_big.h"                  /* B3+DRUM: FONT_M 24 px, FONT_XL 32 px (tools/gen_font_big.py) */
 
 #ifndef CV_MAX
 #define CV_MAX (240u * 124u)      /* the graph strip is 240 x 124 */
