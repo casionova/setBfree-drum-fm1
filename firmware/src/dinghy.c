@@ -33,6 +33,7 @@ static uint32_t fm1_ticks(void) { return 0; }
 #endif
 
 #define ORGAN_POOL __attribute__((section(".pool")))   /* the reverb and Leslie delay lines: zeroed at boot */
+#include "drum_play.h"                         /* B3+DRUM: the drums (ORGAN_DRUMS in organ_core.h) */
 #include "organ_core.h"
 #include "organ_logo.h"                        /* the logo (tools/gen_logo.py) */
 
@@ -97,7 +98,7 @@ static uint32_t screen, sel[4];                 /* screen 0..2 are the manuals, 
 #else
 #define CORES() (fm1_c1_on ? 2u : 1u)                  /* the second core runs (fm1_cpu1.h), or it was not there / was given up */
 #endif
-static uint32_t load_peak, load_now, load_wheels, ld_org, ld_od, ld_rv, ld_le, ld_pk, ld_g, ld_go, ld_q;
+static uint32_t load_peak, load_now, load_wheels, ld_org, ld_od, ld_rv, ld_le, ld_pk, ld_g, ld_go, ld_q, ld_dr, ld_dv;
 static uint32_t midi_ch, midi_kind, midi_cnt, midi_t, midi_d1;   /* the last message that came in: channel 1..16, kind 0 none 1 on 2 off 3 CC 4 PC 5 other */
 
 static uint32_t hmix(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
@@ -221,7 +222,7 @@ static const char *const VIB[6] = {"V1", "C1", "V2", "C2", "V3", "C3"};
 static const char *const LES[3] = {"STOP", "SLOW", "FAST"};
 static const char *const KEYN[3] = {"UPPER", "LOWER", "PEDAL"};
 /* ---- screen 4: the test values, one row each */
-#define TEST_ROWS 10
+#define TEST_ROWS 11
 static uint32_t test_vals(uint32_t r, uint32_t *a, uint32_t *b)    /* what row r shows; the return value says whether it is a warning */
 {
     *a = *b = 0;
@@ -235,6 +236,7 @@ static uint32_t test_vals(uint32_t r, uint32_t *a, uint32_t *b)    /* what row r
     case 6: *a = ld_q; return ld_q > 100u;
     case 7: *a = ld_go; return ld_go < 100u;
     case 8: *a = midi_ch * 16u + midi_kind; *b = midi_cnt; return 0;
+    case 10: *a = drp_on ? ld_dr : 0u; *b = (drp_on ? 1u : 0u) | ld_dv << 1 | drp_kit << 8 | drp_pat << 16; return 0;   /* B3+DRUM */
 #if FELUCCA_UART
     case 9: *a = um.drops + um.resync; *b = um.bytes; return um.drops + um.resync != 0u;
 #endif
@@ -263,10 +265,15 @@ static void band_test(uint32_t r)
         if ((a & 15u) == 3u || (a & 15u) == 4u) q = su(sp(q, " "), midi_d1);
         q = su(sp(q, "   COUNT "), b % 10000u); *q = 0;
         break; }
+    case 10:                                    /* B3+DRUM: the test rhythm (PLAY, SELECT kit, ALGORITHM pattern) */
+        if (b & 1u) q = su(sp(su(sp(t, "DRUMS "), a), " V"), (b >> 1) & 127u);   /* us, voices (short: the battery sits at the end) */
+        else q = sp(t, "DRUMS OFF");
+        q = sp(sp(sp(sp(q, " "), DRM_KIT_NAME[(b >> 8) & 255u]), " "), DRP_PAT_NAME[(b >> 16) & 255u]); *q = 0;
+        break;
     default: q = su(sp(su(sp(t, "MIDI ERRORS "), a > 99u ? 99u : a), "  BYTES "), b); *q = 0; break;
     }
     cv_text(4, 2, &FONT_S, t, c);
-    cv_blit(0, 24u + 20u * r);
+    cv_blit(0, 22u + 19u * r);                  /* (B3+DRUM: 11 rows, a pixel closer than 0.7's 10) */
 }
 static void band_ctrl(uint32_t scr, uint32_t r)
 {
@@ -715,11 +722,16 @@ static void app_main(void)
             if (b & (1u << BTN_SEQ)) P.fast ^= 1u;
             if (b & (1u << BTN_PLAY)) P.soft ^= 1u;
         }
+        if (screen == 3u && (b & (1u << BTN_PLAY))) drp_on ^= 1u;   /* B3+DRUM: the test rhythm */
 
 #define enc_in(id) (t_enc = fm1_enc_take(id), t_enc ? (t_input = fm1_ms, t_enc) : 0)
         if ((e = enc_in(ENC_KNOB1)) != 0) screen = clampu((int32_t)screen + e, 3);
-        if ((e = enc_in(ENC_SELECT)) != 0) if (screen < 3u) sel[screen] = clampu((int32_t)sel[screen] + e, screen == 2 ? 4 : 8);
-        if ((e = enc_in(ENC_ALGORITHM)) != 0 && screen == 2u && sel[2] >= 2u) {   /* the equalizer: 0.5 dB a step */
+        if ((e = enc_in(ENC_SELECT)) != 0) {
+            if (screen < 3u) sel[screen] = clampu((int32_t)sel[screen] + e, screen == 2 ? 4 : 8);
+            else drp_kit = clampu((int32_t)drp_kit + e, (int32_t)DRM_KITS - 1);   /* B3+DRUM: the test rhythm's kit */
+        }
+        if ((e = enc_in(ENC_ALGORITHM)) != 0 && screen == 3u) drp_pat = clampu((int32_t)drp_pat + e, (int32_t)DRP_NPAT - 1);   /* B3+DRUM */
+        else if (e != 0 && screen == 2u && sel[2] >= 2u) {   /* the equalizer: 0.5 dB a step */
             uint16_t ep[EQ_NP];
             for (k = 0; k < EQ_NP; k++) ep[k] = eq_p[k];
             ep[2u * (sel[2] - 2u)] = (uint16_t)clampu((int32_t)ep[2u * (sel[2] - 2u)] + e, 36);
@@ -791,12 +803,13 @@ static void app_main(void)
         fm1_led_key(BTN_SEL, P.od != 0);
         fm1_led_key(BTN_ARP, P.perc3 != 0);
         fm1_led_key(BTN_SEQ, P.fast != 0);
-        fm1_led_key(BTN_PLAY, P.soft != 0);
+        fm1_led_key(BTN_PLAY, screen == 3u ? drp_on != 0 : P.soft != 0);
         fm1_led_key(BTN_REC, P.keys != 0);
 
         if (fm1_ms - t_load > 500u) {           /* how close to the 5800 us a block has: the number to watch */
             t_load = fm1_ms;
             load_now = load_us; load_wheels = wheels_on; ld_org = load_org; ld_od = load_od; ld_rv = load_rv; ld_le = load_le;
+            ld_dr = load_dr; load_dr = 0; ld_dv = drp_vmax; drp_vmax = 0;   /* B3+DRUM */
             ld_pk = (sum_pk * 100u + 16384u) >> 15; sum_pk = 0; ld_q = (out_pk * 100u + 16384u) >> 15; out_pk = 0; ld_g = ((uint32_t)lim_sum.lo * 100u + 16384u) >> 15; lim_sum.lo = 32768; ld_go = ((uint32_t)lim_out.lo * 100u + 16384u) >> 15; lim_out.lo = 32768;
             if (load_now > load_peak) load_peak = load_now;
             load_us = load_org = load_od = load_rv = load_le = 0;

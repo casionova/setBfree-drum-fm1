@@ -374,6 +374,10 @@ static uint32_t block_limit(lim_t *s, int32_t *x, int32_t *y, uint32_t n)
     return (uint32_t)pk;
 }
 
+#ifndef ORGAN_DRUMS                             /* B3+DRUM: the drums (drum_play.h), after the Leslie; returns their time in ticks */
+#define ORGAN_DRUMS(l, r, n) 0u
+#endif
+
 static void app_audio(int32_t *out, uint32_t n)
 {
     /* setBfree scanner.modulation.v1..v3: the delay is 1 + A + A sin(phase) samples, A = 3, 6, 9, at 48 kHz (the Pi it was measured on);
@@ -381,7 +385,7 @@ static void app_audio(int32_t *out, uint32_t n)
     static const int32_t VIBA[3] = {706, 1411, 2117};
     static const int32_t VIBO = 235;            /* the "1 +": one sample of 48 kHz */
     uint32_t lo = pk_lo | mk_lo, hi = pk_hi | mk_hi, llo = pl_lo | ml_lo, lhi = pl_hi | ml_hi, pk = pp_k | mp_k;
-    uint32_t k, d, w, e, i, nk = 0, nku = 0, act = 0, vany = 0, t0 = fm1_ticks(), t1, t2, t3, t4;
+    uint32_t k, d, w, e, i, nk = 0, nku = 0, act = 0, vany = 0, t0 = fm1_ticks(), t1, t2, t3, t4, td;
     int32_t pa = 0, kd;
     uint32_t dm = P.drv, od = P.od, les = P.les, vm, spk = 0, scl = 0, opk = 0;
     int32_t gsw = (int32_t)((1229u * P.swell) / 127u);
@@ -491,6 +495,7 @@ static void app_audio(int32_t *out, uint32_t n)
         t3 = fm1_ticks();
         leslie_run(mono, lbuf, rbuf, n, les);
     }
+    td = ORGAN_DRUMS(lbuf, rbuf, n);            /* B3+DRUM: the drums, after the Leslie so they don't swirl, before the equalizer and limiter */
     eq_run(lbuf, rbuf, n);                      /* the output equalizer (flat: nothing) */
     t4 = fm1_ticks();
     opk = block_limit(&lim_out, lbuf, rbuf, n);      /* the output, after reverb and Leslie (they add gain too): the same limiter, over both channels */
@@ -503,12 +508,15 @@ static void app_audio(int32_t *out, uint32_t n)
     wheels_on = act;
     {
         uint32_t us = (uint32_t)(fm1_ticks() - t0) / FM1_TICKS_PER_US, a = (uint32_t)(t1 - t0) / FM1_TICKS_PER_US, b = (uint32_t)(t2 - t1) / FM1_TICKS_PER_US,
-                 c = (uint32_t)(t3 - t2) / FM1_TICKS_PER_US, f = (uint32_t)(t4 - t3) / FM1_TICKS_PER_US;
+                 c = (uint32_t)(t3 - t2) / FM1_TICKS_PER_US, f = (uint32_t)(t4 - t3 - td) / FM1_TICKS_PER_US;
         if (us > load_us) load_us = us;         /* the peak since the screen last looked */
         if (a > load_org) load_org = a;
         if (b > load_od) load_od = b;
         if (c > load_rv) load_rv = c;
         if (f > load_le) load_le = f;
+#ifdef DRUM_PLAY_H
+        if (td / FM1_TICKS_PER_US > load_dr) load_dr = td / FM1_TICKS_PER_US;
+#endif
     }
 }
 

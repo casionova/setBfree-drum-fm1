@@ -4,7 +4,10 @@
 > far. This fork adds a rhythm section taken from the Cheesebox 931 (CB-931): four synthesised kits (CT-403, Mini Pops 7, TR-606,
 > CR-78, plus the MT-40, MT-18 and VL-1), 20 rhythms, Start/Stop, Intro/Fill, A, B, Outro, swing, tempo and MIDI clock.
 > Work in progress: the drums' integer engine (`firmware/src/drum_core.h`) is tested on the computer against CB-931's
-> (`tests/drum_test.c`: loudness, octave bands and the shape of every sound); it is not in the firmware yet.
+> (`tests/drum_test.c`: loudness, octave bands and the shape of every sound). In the firmware so far only as a **test
+> rhythm** for measuring: on the TEST screen (KNOB 1 to screen 4) PLAY starts and stops it, SELECT picks the kit,
+> ALGORITHM the pattern (BEAT, or BUSY: the worst case); the last row shows the drums' time per block (us) and how many
+> voices sound.
 > Package `b3drum.fwsc`, identity `FM-1_961`. Organ bugs that also happen on B3 ORGAN belong upstream; everything else here.
 
 The rest of this README is B3 ORGAN's own.
